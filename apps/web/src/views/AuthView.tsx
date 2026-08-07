@@ -352,6 +352,7 @@ export const AuthView: React.FC = () => {
                         loginForm.setValue('email', acc.email);
                         loginForm.setValue('password', 'Password123!');
                         setTab('login');
+                        handleLoginSubmit({ email: acc.email, password: 'Password123!' });
                       }}
                       className="p-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-lg text-left transition"
                     >
