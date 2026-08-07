@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-heading: 'Calibri', 'Calibri Light', 'Arial', sans-serif;
+    --font-sans: 'Arial', 'Calibri', 'Helvetica', sans-serif;
+    --font-serif: 'Times New Roman', 'Times', serif;
+    --font-mono: 'Consolas', 'Courier New', monospace;
+
+    --bg-app: #f2f5f8;
+    --bg-card: #ffffff;
+    --bg-sidebar: #0f172a;
+    
+    --brand-primary: #0f766e;
+    --brand-primary-dark: #0d9488;
+    --brand-accent: #0284c7;
+    
+    --border-subtle: #e2e8f0;
+    --border-dark: #cbd5e1;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-app);
+    color: #0f172a;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
+  }
+
+  .font-serif-report {
+    font-family: var(--font-serif);
+  }
+}
+
+/* Bespoke Clinical UI Components */
+.clinical-panel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+}
+
+.clinical-panel-hover {
+  transition: all 0.15s ease-in-out;
+}
+
+.clinical-panel-hover:hover {
+  border-color: #0f766e;
+  box-shadow: 0 4px 12px -2px rgba(15, 118, 110, 0.12);
+}
+
+/* Official Medical Report & Prescription Styling */
+.medical-report-paper {
+  font-family: 'Times New Roman', Times, serif;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  padding: 2rem;
+  color: #000000;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Clinical Status Badges */
+.badge-emergency {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  font-family: 'Arial', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.badge-stable {
+  background: #f0fdf4;
+  color: #14532d;
+  border: 1px solid #86efac;
+  font-family: 'Arial', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.badge-pending {
+  background: #fffbeb;
+  color: #78350f;
+  border: 1px solid #fde68a;
+  font-family: 'Arial', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Print Styles for Digital Prescriptions and Invoices */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Times New Roman', Times, serif !important;
+  }
+  header, sidebar, nav, button, .no-print {
+    display: none !important;
+  }
+  .print-area {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

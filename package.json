@@ -1,0 +1,23 @@
+{
+  "name": "medcore-hms-monorepo",
+  "version": "1.0.0",
+  "description": "MedCore HMS — Multi-Tenant Hospital Management SaaS Platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:types": "npm --prefix packages/types run build",
+    "build:api": "npm --prefix apps/api run build",
+    "build:web": "npm --prefix apps/web run build",
+    "build": "npm run build:types && npm run build:api && npm run build:web",
+    "test:api": "npm --prefix apps/api run test",
+    "test": "npm run test:api",
+    "start:api": "npm --prefix apps/api run start:dev",
+    "start:web": "npm --prefix apps/web run dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

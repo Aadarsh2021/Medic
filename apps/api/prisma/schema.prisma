@@ -1,0 +1,415 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String   @default("India")
+  createdAt  DateTime @default(now())
+
+  hospitals  Hospital[]
+  patients   Patient[]
+}
+
+model Hospital {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  address     String
+  phone       String
+  email       String
+  status      String   @default("VERIFIED") // VERIFIED, PENDING, INACTIVE
+  addressId   String?
+  addressRef  Address? @relation(fields: [addressId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users          User[]
+  patients       Patient[]
+  departments    Department[]
+  rooms          Room[]
+  appointments   Appointment[]
+  medicalRecords MedicalRecord[]
+  prescriptions  Prescription[]
+  labOrders      LabOrder[]
+  medicines      Medicine[]
+  invoices       Invoice[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  fileMetadata   FileMetadata[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String
+  role         String    // SUPER_ADMIN, HOSPITAL_ADMIN, DOCTOR, NURSE, RECEPTIONIST, LAB_TECHNICIAN, PHARMACIST, ACCOUNTANT, PATIENT
+  hospitalId   String?
+  hospital     Hospital? @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  isVerified   Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  doctorProfile  Doctor?
+  patientProfile Patient?
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  uploadedFiles  FileMetadata[]
+
+  @@index([hospitalId])
+  @@index([role])
+}
+
+model Department {
+  id           String   @id @default(uuid())
+  name         String
+  code         String
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  headDoctorId String?
+  createdAt    DateTime @default(now())
+
+  doctors      Doctor[]
+  appointments Appointment[]
+
+  @@index([hospitalId])
+}
+
+model Doctor {
+  id               String      @id @default(uuid())
+  userId           String      @unique
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialisation   String
+  qualification    String
+  licenseNumber    String
+  consultationFee  Decimal     @default(50.00) @db.Decimal(10, 2)
+  departmentId     String?
+  department       Department? @relation(fields: [departmentId], references: [id])
+  weeklySchedule   String      @default("Mon-Fri: 09:00-17:00")
+  digitalSignature String?     // SVG or image data URL
+  deletedAt        DateTime?
+
+  appointments   Appointment[]
+  medicalRecords MedicalRecord[]
+  prescriptions  Prescription[]
+  labOrders      LabOrder[]
+
+  @@index([specialisation])
+  @@index([departmentId])
+}
+
+model Patient {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitalId       String
+  hospital         Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  mrn              String    @unique // Medical Record Number
+  bloodGroup       String?
+  dob              String
+  gender           String
+  emergencyContact String
+  medicalHistory   String?
+  addressId        String?
+  addressRef       Address?  @relation(fields: [addressId], references: [id])
+  deletedAt        DateTime?
+
+  appointments   Appointment[]
+  medicalRecords MedicalRecord[]
+  prescriptions  Prescription[]
+  labOrders      LabOrder[]
+  invoices       Invoice[]
+
+  @@index([hospitalId])
+  @@index([mrn])
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  roomNumber  String
+  bedNumber   String
+  roomType    String   // ICU, GENERAL, PRIVATE, SUITE
+  status      String   @default("AVAILABLE") // AVAILABLE, OCCUPIED, MAINTENANCE
+  dailyRate   Decimal  @db.Decimal(10, 2)
+
+  @@index([hospitalId])
+  @@index([status])
+}
+
+model Appointment {
+  id              String      @id @default(uuid())
+  hospitalId      String
+  hospital        Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  appointmentDate String      // YYYY-MM-DD
+  slotTime        String      // HH:MM
+  status          String      @default("PENDING") // PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW
+  type            String      @default("REGULAR") // REGULAR, EMERGENCY
+  reason          String?
+  cancelledAt     DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime    @default(now())
+
+  medicalRecord MedicalRecord?
+  invoice       Invoice?
+
+  @@index([hospitalId])
+  @@index([doctorId, appointmentDate])
+  @@index([doctorId, appointmentDate, slotTime, status])
+  @@index([patientId])
+  @@index([status])
+}
+
+model MedicalRecord {
+  id              String   @id @default(uuid())
+  appointmentId   String   @unique
+  appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospitalId      String
+  hospital        Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  vitals          String   // BP, pulse, temp, SpO2, height, weight, bmi JSON string
+  chiefComplaint  String
+  diagnosis       String   // ICD-10 code + diagnosis description
+  treatmentPlan   String
+  allergies       String?
+  vaccinations    String?
+  familyHistory   String?
+  attachments     String?  // JSON array of file URLs
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  prescriptions Prescription[]
+  labOrders     LabOrder[]
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model Prescription {
+  id              String        @id @default(uuid())
+  medicalRecordId String
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          Doctor        @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  hospitalId      String
+  hospital        Hospital      @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  notes           String?
+  doctorSignature String?
+  createdAt       DateTime      @default(now())
+
+  items PrescriptionItem[]
+
+  @@index([hospitalId])
+  @@index([patientId])
+}
+
+model Medicine {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  name         String
+  category     String   // Antibiotic, Analgesic, Cardia, etc.
+  form         String   // Tablet, Syrup, Injection, Capsule
+  reorderLevel Int      @default(20)
+  unitCost     Decimal  @db.Decimal(10, 2)
+  mrp          Decimal  @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+
+  batches           MedicineBatch[]
+  prescriptionItems PrescriptionItem[]
+
+  @@index([hospitalId])
+  @@index([name])
+}
+
+model MedicineBatch {
+  id            String   @id @default(uuid())
+  medicineId    String
+  medicine      Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batchNumber   String
+  mfgDate       String
+  expiryDate    String   // YYYY-MM-DD
+  quantity      Int
+  unitCost      Decimal  @db.Decimal(10, 2)
+  mrp           Decimal  @db.Decimal(10, 2)
+  isQuarantined Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([medicineId])
+  @@index([expiryDate])
+  @@index([medicineId, expiryDate])
+}
+
+model PrescriptionItem {
+  id             String       @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicineId     String
+  medicine       Medicine     @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  form           String
+  dosage         String       // e.g. 500mg
+  frequency      String       // e.g. BD (Twice a day)
+  durationDays   Int
+  instructions   String?
+
+  @@index([prescriptionId])
+  @@index([medicineId])
+}
+
+model LabOrder {
+  id                String    @id @default(uuid())
+  medicalRecordId   String
+  medicalRecord     MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  patientId         String
+  patient           Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId          String
+  doctor            Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospitalId        String
+  hospital          Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  testName          String
+  category          String    // Hematology, Biochemistry, Pathology, Radiology
+  status            String    @default("ORDERED") // ORDERED, SAMPLE_COLLECTED, RESULT_UPLOADED, APPROVED, REJECTED
+  sampleCollectedAt DateTime?
+  approvedBy        String?
+  createdAt         DateTime  @default(now())
+
+  results LabResult[]
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([status])
+  @@index([hospitalId, status])
+}
+
+model LabResult {
+  id              String   @id @default(uuid())
+  labOrderId      String
+  labOrder        LabOrder @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+  refRangeMin     Float
+  refRangeMax     Float
+  unit            String
+  resultValue     Float
+  isOutOfRange    Boolean  @default(false)
+  technicianNotes String?
+  reportUrl       String?
+  uploadedAt      DateTime @default(now())
+
+  @@index([labOrderId])
+}
+
+model Invoice {
+  id            String       @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital     @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  invoiceNumber String       @unique
+  subtotal      Decimal      @db.Decimal(10, 2)
+  tax           Decimal      @db.Decimal(10, 2)
+  discount      Decimal      @default(0.00) @db.Decimal(10, 2)
+  total         Decimal      @db.Decimal(10, 2)
+  status        String       @default("DRAFT") // DRAFT, FINAL, PAID, CANCELLED
+  paymentMethod String?      // STRIPE, RAZORPAY, CASH
+  paymentId     String?
+  paidAt        DateTime?
+  createdAt     DateTime     @default(now())
+
+  items InvoiceItem[]
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  department  String   // Consultation, Pharmacy, Laboratory, Room
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  totalAmount Decimal  @db.Decimal(10, 2)
+
+  @@index([invoiceId])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  channel    String   @default("IN_APP") // IN_APP, EMAIL, SMS
+  isRead     Boolean  @default(false)
+  link       String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([hospitalId])
+}
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  hospitalId String?
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  action     String    // CREATE, UPDATE, DELETE, LOGIN, EXPORT
+  entityName String
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  timestamp  DateTime  @default(now())
+
+  @@index([hospitalId])
+  @@index([userId])
+}
+
+model FileMetadata {
+  id               String   @id @default(uuid())
+  hospitalId       String
+  hospital         Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  uploaderUserId   String
+  uploaderUser     User     @relation(fields: [uploaderUserId], references: [id], onDelete: Cascade)
+  category         String   // PROFILE_IMAGE, HOSPITAL_LOGO, LAB_ATTACHMENT, MEDICAL_RECORD, PDF_DOCUMENT
+  originalFilename String
+  mimeType         String
+  size             Int
+  storageKey       String   @unique
+  isPublic         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([hospitalId])
+  @@index([uploaderUserId])
+  @@index([storageKey])
+}

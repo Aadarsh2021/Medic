@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: medcore_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: medcore_hms
+      POSTGRES_USER: medcore_admin
+      POSTGRES_PASSWORD: medcore_password_2026
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medcore_admin -d medcore_hms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: medcore_redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: medcore_api
+    restart: always
+    ports:
+      - '5555:5555'
+    environment:
+      NODE_ENV: production
+      PORT: 5555
+      DATABASE_URL: "postgresql://medcore_admin:medcore_password_2026@postgres:5432/medcore_hms?schema=public"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      CORS_ORIGIN: "http://localhost:5173"
+      FRONTEND_URL: "http://localhost:5173"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
