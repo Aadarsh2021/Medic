@@ -7,6 +7,7 @@ node_modules/
 dist/
 build/
 .next/
+apps/web/.next/
 out/
 *.tsbuildinfo
 *.tgz
@@ -29,10 +30,14 @@ yarn-error.log*
 lerna-debug.log*
 *.log
 
-# Testing & Coverage
+# Testing, Coverage & Playwright
 coverage/
 .nyc_output/
 .jest/
+playwright-report/
+test-results/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # IDE, OS & System Files
 .DS_Store

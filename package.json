@@ -13,6 +13,7 @@
     "build:web": "npm --prefix apps/web run build",
     "build": "npm run build:types && npm run build:api && npm run build:web",
     "test:api": "npm --prefix apps/api run test",
+    "test:web": "npm --prefix apps/web run test",
     "test": "npm run test:api",
     "start:api": "npm --prefix apps/api run start:dev",
     "start:web": "npm --prefix apps/web run dev",

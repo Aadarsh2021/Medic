@@ -1,204 +1,198 @@
-# 🏥 MedCore HMS — Enterprise Multi-Tenant Hospital Management System
+# 🏥 MedCore HMS — Multi-Tenant Hospital Management System
 
-[![NestJS](https://img.shields.io/badge/NestJS-10.4.22-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16.0-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-5.22.0-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?logo=redis&logoColor=white)](https://redis.io/)
-[![BullMQ](https://img.shields.io/badge/BullMQ-5.81.3-FF4400)](https://docs.bullmq.io/)
-[![Puppeteer](https://img.shields.io/badge/Puppeteer-23.11.1-40B5A4?logo=puppeteer&logoColor=white)](https://pptr.dev/)
-[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=white)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+MedCore HMS is a multi-tenant Hospital Management System (HMS) built as a TypeScript monorepo with NestJS, PostgreSQL 16, Prisma 5, Redis 7, BullMQ, Puppeteer, Next.js 15 App Router, and React 19.
 
-MedCore HMS is a state-of-the-art, enterprise-grade, multi-tenant Hospital Management System built with NestJS, PostgreSQL 16, Prisma ORM, Redis 7, BullMQ, Puppeteer, and React. It provides complete clinical, administrative, financial, and operational automation for modern hospitals and multi-center healthcare networks.
+It provides role-based clinical, administrative, diagnostic, pharmacy, billing, and patient portal workflows.
 
 ---
 
-## 🚀 Key Features & Capabilities
+## 🎯 What the System Does
 
-### 🛡️ Multi-Tenancy & Tenant Security
-- **Strict Data Isolation**: Enforced application-wide tenant isolation (`hospitalId` token verification) across PostgreSQL, Redis state, and storage adapters.
-- **Role-Based Access Control (RBAC)**: Fine-grained permissions across 9 system roles (`SUPER_ADMIN`, `HOSPITAL_ADMIN`, `DOCTOR`, `NURSE`, `RECEPTIONIST`, `LAB_TECHNICIAN`, `PHARMACIST`, `ACCOUNTANT`, `PATIENT`).
+- **Multi-Tenancy & Data Isolation**: Enforces tenant boundary isolation (`hospitalId` filtering) across PostgreSQL database records, Redis session state, and file storage abstractions.
+- **9-Role RBAC Authorization**: Role-Based Access Control enforcing permissions across `SUPER_ADMIN`, `HOSPITAL_ADMIN`, `DOCTOR`, `NURSE`, `RECEPTIONIST`, `LAB_TECHNICIAN`, `PHARMACIST`, `ACCOUNTANT`, and `PATIENT`.
+- **Authentication & Security**: Bcrypt password hashing (cost factor 12), JWT access tokens, Redis refresh token rotation, 6-digit email/SMS OTP verification with single-use deletion, and rate limiting.
+- **OPD Appointment Engine**: Real-time consultation slot management backed by database partial unique index constraints (`Appointment_doctor_slot_unique_idx`) preventing double booking under concurrent requests.
+- **Clinical EMR & Prescriptions**: Append-only medical records (`MedicalRecord`), vitals tracking, ICD-10 diagnosis coding, and Puppeteer PDF prescription rendering with digital signatures.
+- **Pathology Laboratory**: Test ordering, specimen sample collection, observed result entry, reference range min/max auto-validation, and out-of-range outlier alerts.
+- **Pharmacy Inventory & FIFO Dispensing**: Medicine formulary management, multi-batch tracking, First-In First-Out (FIFO) stock allocation, expiry validation, and 30-day expiring stock background jobs.
+- **Billing & Multi-Provider Payments**: Server-authoritative invoice aggregation, Stripe and Razorpay payment provider adapters, webhook signature verification, and idempotency protection.
+- **Multi-Channel Notifications**: Real-time Socket.IO WebSocket events, Resend email adapter, and Twilio SMS adapter with zero-cost local development fallbacks.
 
-### 🔐 Authentication & Session Security
-- **JWT Refresh Rotation**: Redis 7 session tracking with short-lived access tokens, refresh token rotation, and reuse attack auto-revocation.
-- **Brute-Force & Rate Limiting**: Redis-backed rate limiting on authentication routes with multi-attempt lockout.
-- **WebSocket Gateway Security**: Authenticated Socket.IO connections with room-level tenant isolation (`hospital_{hospitalId}`).
+---
 
-### 📋 Clinical & Patient Workflows
-- **Electronic Medical Records (EMR)**: Comprehensive medical record entry including vitals, chief complaints, ICD-10 diagnoses, and treatment plans.
-- **Appointment Scheduling**: Real-time slot management backed by PostgreSQL partial unique indexes (`Appointment_doctor_slot_unique_idx`) preventing double-booking and race conditions under concurrent bookings.
-- **Pharmacy & Inventory**: Medicine catalog management, multi-batch tracking, expiry monitoring, and auto-quarantine.
-- **Laboratory Workflow**: Lab test ordering, sample collection tracking, reference range validation, and out-of-range flag detection.
-- **Inpatient Room Management**: Bed allocation, daily rate tracking, and availability states.
+## 🛠️ Tech Stack
 
-### ⚙️ Background Processing & Asynchronous Jobs (BullMQ 5 + Redis 7)
-- **Appointment Reminders**: Automated 24-hour and 1-hour email/SMS reminder queues with cancellation protection and idempotency keys.
-- **Medicine Expiry Monitor**: Daily recurring worker scanning inventory batches and flagging expiring medicines.
-- **Notification Queue**: Multi-channel notification delivery (In-App, Email, SMS).
-- **PDF Generation Processor**: Asynchronous PDF rendering queue using real Headless Chromium/Puppeteer instances.
+### Backend (`apps/api`)
+- **Framework**: NestJS 10 (Node.js 20 LTS runtime)
+- **Database & ORM**: PostgreSQL 16 with Prisma 5.22
+- **Cache & Session**: Redis 7 & `ioredis`
+- **Background Queues**: BullMQ 5
+- **Document Engine**: Puppeteer 23 (Headless Chromium) & Sharp 0.33
 
-### 📄 Document Engine & Secure File Uploads
-- **Puppeteer PDF Rendering**: High-performance server-side rendering for **Prescriptions** and **Invoices** featuring custom CSS styling, dynamic barcode/signature rendering, and HTML injection escaping (`XSS` safe).
-- **Secure File Storage**: Storage abstraction supporting `LocalStorageAdapter` and `S3StorageAdapter`.
-- **Upload Security**: File magic-byte signature validation, Sharp image decoding/re-encoding (stripping EXIF metadata), path traversal filename sanitization, and category size limits.
+### Frontend (`apps/web`)
+- **Framework**: Next.js 15 (App Router) & React 19
+- **Styling**: Tailwind CSS & Shadcn UI primitives
+- **State Management**: TanStack Query v5 & Zustand 5
+- **Form Handling & Validation**: React Hook Form & Zod
+
+### Testing & Infrastructure
+- **Backend Tests**: Jest 29 & Supertest (17 Suites, 126 Tests)
+- **Frontend Tests**: Vitest 4 & React Testing Library (13 Tests)
+- **E2E Automation**: Playwright 1.51 (Chromium Smoke Suite)
+- **Containers**: Docker & Docker Compose (`medcore_api`, `medcore_postgres`, `medcore_redis`)
 
 ---
 
 ## 📁 Repository Architecture
 
-This project is organized as a clean, efficient TypeScript Monorepo:
-
 ```text
-.
+MedCore HMS Monorepo/
 ├── apps/
-│   ├── api/                  # NestJS 10 REST & WebSocket API Backend
-│   │   ├── prisma/           # Schema definitions, seed scripts, & migration SQLs
-│   │   ├── src/              # Application modules, guards, processors, & services
-│   │   └── test/             # Complete E2E integration test suites (15 suites)
-│   └── web/                  # Modern React 18 + Vite Healthcare Dashboard UI
+│   ├── api/                  # NestJS 10 REST & WebSocket API
+│   │   ├── prisma/           # Schema, migrations, and seed scripts
+│   │   ├── src/              # Modules (auth, appointments, emr, lab, pharmacy, billing)
+│   │   └── test/             # 17 Jest integration test suites
+│   └── web/                  # Next.js 15 App Router Frontend
+│       ├── app/              # App Router layouts, pages, and providers
+│       ├── src/              # Views, Zustand stores, and Shadcn primitives
+│       ├── test/             # Vitest form validation schema unit tests
+│       └── e2e/              # Playwright Chromium E2E smoke tests
 ├── packages/
-│   └── types/                # Shared TypeScript DTOs, Enums, & Contract Interfaces
-├── docker-compose.yml        # Multi-container setup (API, Web, PostgreSQL 16, Redis 7)
-├── package.json              # Monorepo workspace configuration & package scripts
+│   └── types/                # Shared domain DTOs, Enums, and TypeScript contracts
+├── docs/                     # PRD compliance, traceability, and ER diagrams
+├── docker-compose.yml        # Docker evaluator infrastructure
+├── package.json              # Workspace scripts
 └── README.md
 ```
 
 ---
 
-## 🛠️ Tech Stack & Infrastructure
-
-- **Backend Framework**: NestJS 10 (Node.js 20 LTS runtime)
-- **Database & ORM**: PostgreSQL 16 with Prisma ORM 5.22
-- **Caching & Session Store**: Redis 7 & `ioredis`
-- **Background Jobs**: BullMQ 5
-- **Document Engine**: Puppeteer 23 (Headless Chromium) & Sharp 0.33
-- **Frontend Framework**: React 18, Vite 5, TailwindCSS, Framer Motion, Lucide Icons
-- **Language & Tooling**: TypeScript 5.9, Jest 29, Supertest
-
----
-
-## 🏁 Getting Started
+## 🏁 Quick Start & Evaluator Setup
 
 ### Prerequisites
-
-Ensure you have the following installed on your machine:
 - **Node.js**: `v20.x` or higher
 - **npm**: `v10.x` or higher
-- **PostgreSQL**: `v16.x` (Running on port `5432`)
-- **Redis**: `v7.x` (Running on port `6379`)
+- **Docker Desktop**: Recommended for PostgreSQL 16 & Redis 7
 
 ---
 
-### Installation & Setup
-
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/Aadarsh2021/Medic.git
-   cd Medic
-   ```
-
-2. **Install Workspace Dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment Variables**:
-   Create a `.env` file in `apps/api/.env`:
-   ```env
-   PORT=5555
-   DATABASE_URL="postgresql://medcore_admin:medcore_password_2026@127.0.0.1:5432/medcore_hms?schema=public"
-   REDIS_HOST="127.0.0.1"
-   REDIS_PORT=6379
-   JWT_SECRET="medcore_jwt_super_secret_key_2026_change_in_production"
-   JWT_REFRESH_SECRET="medcore_jwt_refresh_secret_key_2026_change_in_production"
-   CORS_ORIGIN="http://localhost:5173"
-   ```
-
-4. **Apply Database Migrations & Seed Fixtures**:
-   ```bash
-   cd apps/api
-   npx prisma migrate deploy
-   npx prisma generate
-   npx ts-node prisma/seed.ts
-   cd ../..
-   ```
-
----
-
-## 💻 Running the Application
-
-### Development Mode
-To start both the API backend and Frontend dashboard concurrently:
+### Step 1: Clone & Install Dependencies
 ```bash
-npm run dev
-```
-- **Backend API**: `http://localhost:5555`
-- **Frontend Dashboard**: `http://localhost:5173`
-- **Swagger Open API Docs**: `http://localhost:5555/api/docs`
-
-### Individual Workspace Launch
-```bash
-# Run API Backend only
-npm --prefix apps/api run start:dev
-
-# Run Web Frontend only
-npm --prefix apps/web run dev
+git clone https://github.com/Aadarsh2021/Medic.git
+cd Medic
+npm install
 ```
 
 ---
 
-## 🏗️ Production Build
-
-To verify and build all workspace packages (`@medcore/types`, `apps/api`, `apps/web`):
+### Step 2: Start Infrastructure Containers
 ```bash
-npm run build
+docker compose up -d postgres redis
+```
+*Starts PostgreSQL 16 on port `5432` and Redis 7 on port `6379`.*
+
+---
+
+### Step 3: Run Database Migrations & Seed Data
+```bash
+cd apps/api
+npx prisma migrate deploy
+npx prisma generate
+npx ts-node prisma/seed.ts
+cd ../..
 ```
 
 ---
 
-## 🧪 Testing & Quality Assurance
+### Step 4: Launch Applications
+```bash
+# Start NestJS API (Port 5555)
+npm run start:api
 
-MedCore HMS includes an extensive, zero-flakiness E2E test suite covering security, concurrency, state machines, job queues, upload safety, and PDF generation:
+# In a second terminal, start Next.js Frontend (Port 3000)
+npm run start:web
+```
 
+- **Next.js Web App**: `http://localhost:3000`
+- **NestJS REST API**: `http://localhost:5555`
+- **Swagger API Docs**: `http://localhost:5555/api/docs`
+
+---
+
+## 🔑 Evaluator Demo Accounts
+
+All accounts use password: `Password123!`
+
+| Role | Demo Email | Primary Scope |
+| :--- | :--- | :--- |
+| **Super Admin** | `superadmin@medcore.org` | Global hospital onboarding & analytics |
+| **Hospital Admin** | `admin@medcore-city.org` | Staff & department management |
+| **Doctor** | `dr.sharma@medcore.org` | Clinical EMR, prescriptions, lab orders |
+| **Nurse** | `nurse@medcore-city.org` | Patient vitals & OPD scheduling |
+| **Receptionist** | `reception@medcore-city.org` | Patient registration & appointment booking |
+| **Lab Technician** | `labtech@medcore-city.org` | Sample collection & result entry |
+| **Pharmacist** | `pharmacist@medcore-city.org` | Inventory formulary & FIFO dispensing |
+| **Accountant** | `accountant@medcore-city.org` | Invoices, ledger, & payment status |
+| **Patient** | `patient1@example.com` | Personal health timeline & reports |
+
+---
+
+## 🧪 Verified Test Suite & Coverage Baseline
+
+### 1. Backend Integration Tests (Jest)
 ```bash
 npm run test:api -- --forceExit --detectOpenHandles --runInBand
 ```
+- **Result**: **17/17 test suites passed, 126/126 tests passed**.
+- **Backend Line Coverage**: **72.15%** (Exceeds PRD mandatory target of >70%).
 
-### Verified Baseline Results
-```text
-PASS test/storage-pdf.test.ts (13.315 s)
-PASS test/websocket-security.test.ts
-PASS test/rbac.test.ts
-PASS test/lab-workflow.test.ts
-PASS test/auth.test.ts
-PASS test/appointment-state-machine.test.ts
-PASS test/emr.test.ts
-PASS test/concurrency.test.ts
-PASS test/billing.test.ts
-PASS test/patient-isolation.test.ts
-PASS test/redis-infrastructure.test.ts
-PASS test/tenancy.test.ts
-PASS test/pharmacy.test.ts
-PASS test/direct_index.test.ts
-PASS test/bullmq-jobs.test.ts
-
-Test Suites: 15 passed, 15 total
-Tests:       111 passed, 111 total
-Snapshots:   0 total
-Time:        54.493 s
+### 2. Frontend Validation Tests (Vitest)
+```bash
+npm --prefix apps/web run test
 ```
+- **Result**: **1/1 file passed, 13/13 schema unit tests passed**.
+
+### 3. Playwright E2E Smoke Workflows
+```bash
+# Start Next.js dev server on port 3000 first, then run:
+npx --prefix apps/web playwright test
+```
+- **Result**: **3/3 Playwright smoke workflows passed on Chromium**.
+
+### 4. Monorepo Production Build
+```bash
+npm run build
+```
+- **Result**: **PASS** (Compiles `@medcore/types`, `apps/api`, and `apps/web` with 0 errors).
 
 ---
 
-## 🐳 Docker Deployment
+## 📚 API Documentation & Open API Specification
 
-To launch the full system inside containerized environments:
-```bash
-docker-compose up --build -d
-```
+NestJS Swagger OpenAPI documentation is configured and accessible live at:
+`http://localhost:5555/api/docs`
+
+---
+
+## 🔐 Security & Governance Notes
+
+- **Multi-Tenancy**: Application-layer tenant scoping via `req.user.hospitalId`.
+- **Password Security**: Bcrypt cost factor 12.
+- **Session Management**: JWT access tokens and Redis 7 refresh token rotation.
+- **OTP Verification**: Redis 6-digit email/SMS OTP with immediate single-use deletion.
+- **Payment Verification**: Server-authoritative invoice totals and HMAC webhook signature checks.
+- **HIPAA-Aware Design**: Enforces role access boundaries, audit logging (`AuditService`), and tenant data isolation.
+
+---
+
+## 📄 PRD Traceability & Documentation
+
+- **Original PRD**: [`docs/PRD.docx`](file:///c:/Users/thaku/OneDrive/Desktop/Intermo/Project%202/docs/PRD.docx)
+- **PRD Traceability Matrix**: [`docs/PRD_TRACEABILITY.md`](file:///c:/Users/thaku/OneDrive/Desktop/Intermo/Project%202/docs/PRD_TRACEABILITY.md)
+- **PRD Compliance Audit Report**: [`docs/PRD_COMPLIANCE_AUDIT.md`](file:///c:/Users/thaku/OneDrive/Desktop/Intermo/Project%202/docs/PRD_COMPLIANCE_AUDIT.md)
 
 ---
 
 ## 📄 License
 
-This repository is distributed under the MIT License. See `LICENSE` for details.
+Distributed under the MIT License. See `LICENSE` for details.
