@@ -8,6 +8,8 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "docker compose up -d postgres redis && npm --prefix apps/web run dev",
+    "start": "docker compose up -d postgres redis api && npm --prefix apps/web run dev",
     "build:types": "npm --prefix packages/types run build",
     "build:api": "npm --prefix apps/api run build",
     "build:web": "npm --prefix apps/web run build",
