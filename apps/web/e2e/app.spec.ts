@@ -18,34 +18,30 @@ test.describe('MedCore HMS Playwright E2E Smoke Workflows', () => {
 
   test('3. Authenticated session navigation across core clinical routes', async ({ page }) => {
     await page.goto('/login');
-    await page.evaluate(() => {
-      const authState = {
-        state: {
-          currentUser: { id: 'sa-1', email: 'superadmin@medcore.org', role: 'SUPER_ADMIN', firstName: 'Super', lastName: 'Admin' },
-          accessToken: 'e2e-test-jwt-token-2026',
-        },
-        version: 0,
-      };
-      localStorage.setItem('accessToken', 'e2e-test-jwt-token-2026');
-      localStorage.setItem('medcore-auth-storage', JSON.stringify(authState));
-    });
+    await page.waitForSelector('input[type="email"]');
 
-    await page.goto('/dashboard');
+    // Click Super Admin Quick Login preset
+    const superAdminPreset = page.locator('button', { hasText: 'Super Admin' }).first();
+    await superAdminPreset.click();
+
+    // Wait for redirect to /dashboard after authenticating
+    await page.waitForURL('**/dashboard', { timeout: 10000 });
     await expect(page).toHaveURL(/.*dashboard/);
 
-    await page.goto('/appointments');
+    // Navigate using sidebar navigation items
+    await page.locator('button', { hasText: 'Hospital Scheduling' }).click();
     await expect(page).toHaveURL(/.*appointments/);
 
-    await page.goto('/doctor-portal');
+    await page.locator('button', { hasText: 'Clinical Encounters' }).click();
     await expect(page).toHaveURL(/.*doctor-portal/);
 
-    await page.goto('/laboratory');
+    await page.locator('button', { hasText: 'Laboratory Diagnostics' }).click();
     await expect(page).toHaveURL(/.*laboratory/);
 
-    await page.goto('/pharmacy');
+    await page.locator('button', { hasText: 'Pharmacy Inventory' }).click();
     await expect(page).toHaveURL(/.*pharmacy/);
 
-    await page.goto('/billing');
+    await page.locator('button', { hasText: 'Revenue & Billing' }).click();
     await expect(page).toHaveURL(/.*billing/);
   });
 });

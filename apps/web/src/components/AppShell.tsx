@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
       <Navbar
         currentUser={currentUser}
         notifications={notifications}
@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto bg-slate-900 text-slate-100 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>
