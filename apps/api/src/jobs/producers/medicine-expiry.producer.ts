@@ -11,7 +11,7 @@ export class MedicineExpiryProducer implements OnModuleInit {
   constructor(
     @InjectQueue(MEDICINE_EXPIRY_QUEUE)
     private readonly expiryQueue: Queue,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     // In test environment, avoid auto-scheduling cron intervals that interfere with Jest runs
