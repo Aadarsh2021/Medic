@@ -46,7 +46,7 @@ export const AuthView: React.FC = () => {
   const { setAuth } = useAuthStore();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [hospitals, setHospitals] = useState<any[]>([]);
-  const [showDemoAccounts, setShowDemoAccounts] = useState(false);
+  const [showDemoAccounts, setShowDemoAccounts] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -354,10 +354,10 @@ export const AuthView: React.FC = () => {
                         setTab('login');
                         handleLoginSubmit({ email: acc.email, password: 'Password123!' });
                       }}
-                      className="p-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-lg text-left transition"
+                      className="p-2.5 bg-slate-50 hover:bg-teal-50 hover:border-teal-400 border border-slate-300 rounded-xl text-left transition shadow-2xs cursor-pointer"
                     >
-                      <div className="font-bold text-[11px] text-slate-900">{acc.label}</div>
-                      <div className="text-[10px] text-slate-500 truncate">{acc.email}</div>
+                      <div className="font-extrabold text-xs text-slate-900">{acc.label}</div>
+                      <div className="text-[11px] font-semibold text-teal-800 truncate">{acc.email}</div>
                     </button>
                   ))}
                 </div>
