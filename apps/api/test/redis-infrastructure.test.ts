@@ -185,6 +185,7 @@ describe('REDIS 7: Session, OTP, and Rate-Limiting Infrastructure Tests', () => 
   test('8. Rate limiting returns 429 Too Many Requests when limit is exceeded', async () => {
     const authService = app.get<any>(require('../src/modules/auth/auth.service').AuthService);
     const rateLimitKey = 'ratelimit_test_force:test_ip_192';
+    await redis.del(rateLimitKey);
 
     // Send requests up to limit
     for (let i = 0; i < 5; i++) {

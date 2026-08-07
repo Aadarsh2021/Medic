@@ -1,3 +1,14 @@
+import {
+  Role as SharedRole,
+  AppointmentStatus as SharedAppointmentStatus,
+  AppointmentType as SharedAppointmentType,
+  LabOrderStatus as SharedLabOrderStatus,
+  InvoiceStatus as SharedInvoiceStatus,
+  ApiResponse as SharedApiResponse,
+  UserDTO,
+  AppointmentSlotDTO,
+} from '@medcore/types';
+
 export type Role =
   | 'SUPER_ADMIN'
   | 'HOSPITAL_ADMIN'
@@ -8,6 +19,17 @@ export type Role =
   | 'PHARMACIST'
   | 'ACCOUNTANT'
   | 'PATIENT';
+
+export type {
+  SharedRole,
+  SharedAppointmentStatus,
+  SharedAppointmentType,
+  SharedLabOrderStatus,
+  SharedInvoiceStatus,
+  SharedApiResponse,
+  UserDTO,
+  AppointmentSlotDTO,
+};
 
 export interface User {
   id: string;
@@ -89,7 +111,7 @@ export interface MedicalRecord {
   appointmentId: string;
   patientId: string;
   doctorId: string;
-  vitals: string; // JSON string
+  vitals: string;
   chiefComplaint: string;
   diagnosis: string;
   treatmentPlan: string;
