@@ -1,12 +1,16 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StripePaymentAdapter } from '../../providers/adapters/stripe-payment.adapter';
+import { RazorpayPaymentAdapter } from '../../providers/adapters/razorpay-payment.adapter';
 
 @Injectable()
 export class BillingService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private stripePaymentAdapter: StripePaymentAdapter,
+    private razorpayPaymentAdapter: RazorpayPaymentAdapter,
   ) {}
 
   async getInvoices(user: any, filterPatientId?: string, filterHospitalId?: string, status?: string) {
@@ -129,7 +133,7 @@ export class BillingService {
       'CREATE',
       'Invoice',
       invoice.id,
-      `Generated invoice ${invoiceNumber} for total $${total}`,
+      `Generated invoice ${invoiceNumber} for total ₹${total}`,
       ipAddress,
     );
 
@@ -186,6 +190,227 @@ export class BillingService {
       discount: Number(updated.discount),
       total: Number(updated.total),
     };
+  }
+
+  // ── STRIPE PAYMENT INTEGRATION ─────────────────────────────────────────────
+
+  async createStripePaymentIntent(id: string, user: any) {
+    const invoice = await this.getInvoiceById(id, user);
+
+    if (invoice.status === 'PAID') {
+      throw new BadRequestException({
+        success: false,
+        error: { code: 'ALREADY_PAID', message: 'Invoice is already fully paid' },
+      });
+    }
+
+    // Authoritative Amount Enforcement: Calculate minor units (paise/cents) directly from PostgreSQL DB record
+    const amountInMinorUnits = Math.round(Number(invoice.total) * 100);
+
+    const intentResult = await this.stripePaymentAdapter.createPaymentIntent({
+      invoiceId: invoice.id,
+      amount: amountInMinorUnits,
+      currency: 'INR',
+      hospitalId: invoice.hospitalId,
+      patientId: invoice.patientId,
+    });
+
+    // Record PENDING Payment transaction
+    await this.prisma.payment.create({
+      data: {
+        hospitalId: invoice.hospitalId,
+        patientId: invoice.patientId,
+        invoiceId: invoice.id,
+        provider: 'STRIPE',
+        providerOrderId: intentResult.providerOrderId,
+        amount: invoice.total,
+        currency: 'INR',
+        status: 'PENDING',
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        providerOrderId: intentResult.providerOrderId,
+        clientSecret: intentResult.clientSecret,
+        amount: Number(invoice.total),
+        amountInMinorUnits,
+        currency: 'INR',
+        provider: intentResult.provider,
+      },
+    };
+  }
+
+  // ── RAZORPAY PAYMENT INTEGRATION ───────────────────────────────────────────
+
+  async createRazorpayOrder(id: string, user: any) {
+    const invoice = await this.getInvoiceById(id, user);
+
+    if (invoice.status === 'PAID') {
+      throw new BadRequestException({
+        success: false,
+        error: { code: 'ALREADY_PAID', message: 'Invoice is already fully paid' },
+      });
+    }
+
+    // Authoritative Amount Enforcement: ₹1.00 = 100 Paise
+    const amountInPaise = Math.round(Number(invoice.total) * 100);
+
+    const orderResult = await this.razorpayPaymentAdapter.createPaymentIntent({
+      invoiceId: invoice.id,
+      amount: amountInPaise,
+      currency: 'INR',
+      hospitalId: invoice.hospitalId,
+      patientId: invoice.patientId,
+    });
+
+    // Record PENDING Payment transaction
+    await this.prisma.payment.create({
+      data: {
+        hospitalId: invoice.hospitalId,
+        patientId: invoice.patientId,
+        invoiceId: invoice.id,
+        provider: 'RAZORPAY',
+        providerOrderId: orderResult.providerOrderId,
+        amount: invoice.total,
+        currency: 'INR',
+        status: 'PENDING',
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        providerOrderId: orderResult.providerOrderId,
+        amount: amountInPaise,
+        currency: 'INR',
+        keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_demo',
+        provider: orderResult.provider,
+      },
+    };
+  }
+
+  async verifyRazorpayCheckout(
+    user: any,
+    body: { invoiceId: string; razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string },
+  ) {
+    const { invoiceId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
+    const invoice = await this.getInvoiceById(invoiceId, user);
+
+    const isValid = this.razorpayPaymentAdapter.verifyCheckoutSignature(
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    );
+
+    if (!isValid) {
+      throw new ForbiddenException({
+        success: false,
+        error: { code: 'INVALID_SIGNATURE', message: 'Razorpay checkout signature verification failed' },
+      });
+    }
+
+    // Transactionally update Payment and Invoice state
+    await this.prisma.$transaction([
+      this.prisma.payment.updateMany({
+        where: { invoiceId: invoice.id, providerOrderId: razorpay_order_id },
+        data: { status: 'SUCCEEDED', providerPaymentId: razorpay_payment_id },
+      }),
+      this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: 'PAID', paymentMethod: 'RAZORPAY', paymentId: razorpay_payment_id, paidAt: new Date() },
+      }),
+    ]);
+
+    return { success: true, message: 'Razorpay checkout verified and payment recorded' };
+  }
+
+  // ── WEBHOOK HANDLING & IDEMPOTENCY ─────────────────────────────────────────
+
+  async handleStripeWebhook(rawBody: string | Buffer, signatureHeader: string) {
+    const result = await this.stripePaymentAdapter.verifyWebhookSignature(rawBody, signatureHeader);
+
+    if (!result.isValid) {
+      throw new ForbiddenException({
+        success: false,
+        error: { code: 'INVALID_SIGNATURE', message: 'Invalid Stripe signature' },
+      });
+    }
+
+    if (result.eventStatus === 'SUCCEEDED' && result.providerOrderId) {
+      // Idempotent processing check
+      const existingPayment = await this.prisma.payment.findFirst({
+        where: { providerOrderId: result.providerOrderId },
+      });
+
+      if (existingPayment && existingPayment.status === 'SUCCEEDED') {
+        return { received: true, idempotent: true };
+      }
+
+      const invoiceId = existingPayment?.invoiceId;
+      if (invoiceId) {
+        await this.prisma.$transaction([
+          this.prisma.payment.updateMany({
+            where: { providerOrderId: result.providerOrderId },
+            data: { status: 'SUCCEEDED', providerPaymentId: result.providerPaymentId || result.providerOrderId },
+          }),
+          this.prisma.invoice.update({
+            where: { id: invoiceId },
+            data: {
+              status: 'PAID',
+              paymentMethod: 'STRIPE',
+              paymentId: result.providerPaymentId || result.providerOrderId,
+              paidAt: new Date(),
+            },
+          }),
+        ]);
+      }
+    }
+
+    return { received: true };
+  }
+
+  async handleRazorpayWebhook(rawBody: string | Buffer, signatureHeader: string) {
+    const result = await this.razorpayPaymentAdapter.verifyWebhookSignature(rawBody, signatureHeader);
+
+    if (!result.isValid) {
+      throw new ForbiddenException({
+        success: false,
+        error: { code: 'INVALID_SIGNATURE', message: 'Invalid Razorpay signature' },
+      });
+    }
+
+    if (result.eventStatus === 'SUCCEEDED' && result.providerOrderId) {
+      const existingPayment = await this.prisma.payment.findFirst({
+        where: { providerOrderId: result.providerOrderId },
+      });
+
+      if (existingPayment && existingPayment.status === 'SUCCEEDED') {
+        return { status: 'ok', idempotent: true };
+      }
+
+      const invoiceId = existingPayment?.invoiceId;
+      if (invoiceId) {
+        await this.prisma.$transaction([
+          this.prisma.payment.updateMany({
+            where: { providerOrderId: result.providerOrderId },
+            data: { status: 'SUCCEEDED', providerPaymentId: result.providerPaymentId || result.providerOrderId },
+          }),
+          this.prisma.invoice.update({
+            where: { id: invoiceId },
+            data: {
+              status: 'PAID',
+              paymentMethod: 'RAZORPAY',
+              paymentId: result.providerPaymentId || result.providerOrderId,
+              paidAt: new Date(),
+            },
+          }),
+        ]);
+      }
+    }
+
+    return { status: 'ok' };
   }
 
   async generateInvoicePdfHtml(id: string) {

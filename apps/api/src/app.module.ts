@@ -18,6 +18,7 @@ import { RedisModule } from './redis/redis.module';
 import { JobsModule } from './jobs/jobs.module';
 import { StorageModule } from './storage/storage.module';
 import { PdfModule } from './pdf/pdf.module';
+import { ProvidersModule } from './providers/providers.module';
 
 import { DiscoveryModule } from '@nestjs/core';
 
@@ -27,6 +28,7 @@ import { DiscoveryModule } from '@nestjs/core';
     DiscoveryModule,
     PrismaModule,
     RedisModule,
+    ProvidersModule,
     JobsModule,
     // StorageModule,
     // PdfModule,

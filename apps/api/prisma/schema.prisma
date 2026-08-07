@@ -46,6 +46,7 @@ model Hospital {
   notifications  Notification[]
   auditLogs      AuditLog[]
   fileMetadata   FileMetadata[]
+  payments       Payment[]
 }
 
 model User {
@@ -131,6 +132,7 @@ model Patient {
   prescriptions  Prescription[]
   labOrders      LabOrder[]
   invoices       Invoice[]
+  payments       Payment[]
 
   @@index([hospitalId])
   @@index([mrn])
@@ -342,6 +344,7 @@ model Invoice {
   createdAt     DateTime     @default(now())
 
   items InvoiceItem[]
+  payments Payment[]
 
   @@index([hospitalId])
   @@index([patientId])
@@ -413,3 +416,30 @@ model FileMetadata {
   @@index([uploaderUserId])
   @@index([storageKey])
 }
+
+model Payment {
+  id                String   @id @default(uuid())
+  hospitalId        String
+  hospital          Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId         String
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  invoiceId         String
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  provider          String   // STRIPE, RAZORPAY
+  providerOrderId   String?  // Stripe PaymentIntent ID / Razorpay Order ID
+  providerPaymentId String?  // Stripe Charge ID / Razorpay Payment ID
+  amount            Decimal  @db.Decimal(10, 2)
+  currency          String   @default("INR")
+  status            String   @default("PENDING") // PENDING, SUCCEEDED, FAILED, REFUNDED
+  rawWebhookPayload String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([invoiceId])
+  @@index([providerOrderId])
+  @@index([providerPaymentId])
+  @@index([status])
+}
+
