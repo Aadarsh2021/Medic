@@ -1,84 +1,107 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, AlertTriangle, CheckCircle2, ShieldCheck, FileSpreadsheet, TestTube, Microscope } from 'lucide-react';
 import { apiRequest } from '../services/api';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+
+const labResultSchema = z
+  .object({
+    resultValue: z.number({ invalid_type_error: 'Result value must be a number' }),
+    refRangeMin: z.number({ invalid_type_error: 'Min range must be a number' }),
+    refRangeMax: z.number({ invalid_type_error: 'Max range must be a number' }),
+    unit: z.string().min(1, 'Unit is required (e.g. mg/dL, g/dL)'),
+    technicianNotes: z.string().optional(),
+  })
+  .refine((data) => data.refRangeMax > data.refRangeMin, {
+    message: 'Reference maximum must be greater than minimum range',
+    path: ['refRangeMax'],
+  });
+
+type LabResultFormValues = z.infer<typeof labResultSchema>;
 
 export const LaboratoryView: React.FC = () => {
-  const [labOrders, setLabOrders] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [resultVal, setResultVal] = useState<number | ''>(235);
-  const [refMin, setRefMin] = useState<number | ''>(120);
-  const [refMax, setRefMax] = useState<number | ''>(200);
-  const [unit, setUnit] = useState('mg/dL');
-  const [notes, setNotes] = useState('Quantitative assay verified by Clinical Lab Technician.');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    loadLabOrders();
-  }, []);
+  const { data: labOrders = [] } = useQuery({
+    queryKey: ['lab-orders'],
+    queryFn: () => apiRequest('/lab-orders').catch(() => []),
+  });
 
-  const loadLabOrders = async () => {
-    try {
-      const orders = await apiRequest('/lab-orders');
-      setLabOrders(orders || []);
-      if (orders && orders.length > 0 && !selectedOrder) {
-        setSelectedOrder(orders[0]);
-      }
-    } catch (err: any) {
-      console.error(err);
-    }
-  };
+  const orders = labOrders || [];
+  const currentOrder = selectedOrder || (orders.length > 0 ? orders[0] : null);
 
-  const handleCollectSample = async (orderId: string) => {
-    try {
-      await apiRequest(`/lab-orders/${orderId}/collect`, { method: 'PATCH' });
+  const form = useForm<LabResultFormValues>({
+    resolver: zodResolver(labResultSchema as any),
+    defaultValues: {
+      resultValue: 235,
+      refRangeMin: 120,
+      refRangeMax: 200,
+      unit: 'mg/dL',
+      technicianNotes: 'Quantitative assay verified by Clinical Lab Technician.',
+    },
+  });
+
+  const watchResultVal = form.watch('resultValue');
+  const watchRefMin = form.watch('refRangeMin');
+  const watchRefMax = form.watch('refRangeMax');
+
+  const numVal = Number(watchResultVal) || 0;
+  const minVal = Number(watchRefMin) || 0;
+  const maxVal = Number(watchRefMax) || 0;
+  const isOutlier = numVal < minVal || numVal > maxVal;
+
+  const collectMutation = useMutation({
+    mutationFn: (orderId: string) => apiRequest(`/lab-orders/${orderId}/collect`, { method: 'PATCH' }),
+    onSuccess: () => {
       setMessage({ type: 'success', text: 'Specimen sample marked as collected!' });
-      loadLabOrders();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: ['lab-orders'] });
+    },
+    onError: (err: any) => setMessage({ type: 'error', text: err.message || 'Sample collection failed.' }),
+  });
 
-  const handleUploadResult = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrder) return;
-
-    try {
-      await apiRequest(`/lab-orders/${selectedOrder.id}/result`, {
+  const resultMutation = useMutation({
+    mutationFn: (values: LabResultFormValues) => {
+      if (!currentOrder) throw new Error('Please select an active lab order.');
+      return apiRequest(`/lab-orders/${currentOrder.id}/result`, {
         method: 'PATCH',
         body: JSON.stringify({
-          resultValue: resultVal === '' ? 0 : Number(resultVal),
-          refRangeMin: refMin === '' ? 0 : Number(refMin),
-          refRangeMax: refMax === '' ? 0 : Number(refMax),
-          unit,
-          technicianNotes: notes || 'Verified by Senior Lab Specialist',
+          resultValue: values.resultValue,
+          refRangeMin: values.refRangeMin,
+          refRangeMax: values.refRangeMax,
+          unit: values.unit,
+          technicianNotes: values.technicianNotes || 'Verified by Senior Lab Specialist',
         }),
       });
-
+    },
+    onSuccess: () => {
       setMessage({ type: 'success', text: 'Lab result submitted & reference outlier evaluated!' });
-      loadLabOrders();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: ['lab-orders'] });
+    },
+    onError: (err: any) => setMessage({ type: 'error', text: err.message || 'Failed to submit lab result.' }),
+  });
 
-  const handleApproveReport = async (orderId: string) => {
-    try {
-      await apiRequest(`/lab-orders/${orderId}/approve`, {
-        method: 'PATCH',
-      });
+  const approveMutation = useMutation({
+    mutationFn: (orderId: string) => apiRequest(`/lab-orders/${orderId}/approve`, { method: 'PATCH' }),
+    onSuccess: () => {
       setMessage({ type: 'success', text: 'Lab report approved & patient notified via Socket.IO real-time event!' });
-      loadLabOrders();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: ['lab-orders'] });
+    },
+    onError: (err: any) => setMessage({ type: 'error', text: err.message || 'Report approval failed.' }),
+  });
 
-  const numVal = resultVal === '' ? 0 : Number(resultVal);
-  const minVal = refMin === '' ? 0 : Number(refMin);
-  const maxVal = refMax === '' ? 0 : Number(refMax);
-  const isOutlier = numVal < minVal || numVal > maxVal;
+  const onSubmit = (values: LabResultFormValues) => {
+    setMessage(null);
+    resultMutation.mutate(values);
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
@@ -92,169 +115,135 @@ export const LaboratoryView: React.FC = () => {
       </div>
 
       {message && (
-        <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
-          {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />}
+        <div
+          className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+            message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+          }`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
           <span>{message.text}</span>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Active Lab Orders List */}
-        <div className="glass-card-light p-5 rounded-2xl border border-slate-200 space-y-3">
-          <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Active Diagnostic Orders</h3>
+        <div className="glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
+          <h3 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-teal-600" /> Diagnostic Orders ({orders.length})
+          </h3>
 
-          <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-            {labOrders.map((order) => {
-              const isSelected = selectedOrder?.id === order.id;
-              const patientName = `${order.patient?.user?.firstName || 'Patient'} ${order.patient?.user?.lastName || ''}`;
-
-              return (
-                <div
-                  key={order.id}
-                  onClick={() => setSelectedOrder(order)}
-                  className={`p-3.5 rounded-xl border text-xs cursor-pointer transition ${
-                    isSelected ? 'bg-teal-50/80 border-teal-500 shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-900">{order.testName}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                      {order.status}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-600 font-medium">Patient: {patientName}</div>
-                  {order.results?.length > 0 && order.results[0]?.isOutlier && (
-                    <div className="mt-1 text-[10px] font-bold text-rose-600 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" /> Flagged Outlier
+          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+            {orders.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-400 font-medium">No active lab orders</div>
+            ) : (
+              orders.map((order: any) => {
+                const isSelected = currentOrder?.id === order.id;
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => setSelectedOrder(order)}
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer transition ${
+                      isSelected ? 'bg-teal-50 border-teal-500 shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-bold text-slate-900 mb-1">
+                      <span>{order.testName || 'Serum Lipid Profile'}</span>
+                      <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">{order.status}</span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    <div className="text-[11px] text-slate-500 font-medium">Patient: {order.patient?.user?.firstName} {order.patient?.user?.lastName}</div>
+                    <div className="text-[10px] text-slate-400 mt-1">Category: {order.category || 'Biochemistry'}</div>
+
+                    <div className="mt-3 flex gap-2">
+                      {order.status === 'ORDERED' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            collectMutation.mutate(order.id);
+                          }}
+                          disabled={collectMutation.isPending}
+                          className="w-full text-[11px] h-8"
+                        >
+                          Collect Specimen
+                        </Button>
+                      )}
+                      {(order.status === 'SAMPLE_COLLECTED' || order.status === 'RESULT_UPLOADED') && (
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            approveMutation.mutate(order.id);
+                          }}
+                          disabled={approveMutation.isPending}
+                          className="w-full text-[11px] h-8"
+                        >
+                          Approve Report
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Test Result Quantitative Verification Panel */}
-        <div className="lg:col-span-2 space-y-6">
-          {selectedOrder ? (
-            <div className="glass-card-light p-6 rounded-2xl border border-slate-200 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="font-bold text-base text-slate-900">{selectedOrder.testName}</h3>
-                  <p className="text-xs text-slate-500 font-medium">Category: {selectedOrder.category || 'Biochemistry'} • Patient: {selectedOrder.patient?.user?.firstName} {selectedOrder.patient?.user?.lastName} ({selectedOrder.patient?.mrn})</p>
-                </div>
-                <div className="flex gap-2">
-                  {selectedOrder.status === 'ORDERED' && (
-                    <button
-                      onClick={() => handleCollectSample(selectedOrder.id)}
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition"
-                    >
-                      Collect Specimen
-                    </button>
-                  )}
-                  {selectedOrder.status === 'SAMPLE_COLLECTED' && (
-                    <span className="bg-blue-50 text-blue-700 font-bold px-3 py-1.5 rounded-xl text-xs border border-blue-200">
-                      Specimen Collected
-                    </span>
-                  )}
-                  {selectedOrder.results?.length > 0 && selectedOrder.status !== 'APPROVED' && (
-                    <button
-                      onClick={() => handleApproveReport(selectedOrder.id)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition"
-                    >
-                      Approve Report
-                    </button>
-                  )}
-                </div>
-              </div>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="lg:col-span-2 glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
+          <h3 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+            <TestTube className="w-4 h-4 text-teal-600" /> Lab Test Result Entry & Outlier Evaluator
+          </h3>
 
-              {/* Form to enter Quantitative Result */}
-              <form onSubmit={handleUploadResult} className="space-y-4">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <TestTube className="w-3.5 h-3.5 text-teal-600" /> Quantitative Test Result & Reference Range
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Measured Value</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
-                      value={resultVal}
-                      onChange={(e) => setResultVal(e.target.value === '' ? '' : Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Ref Min</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                      value={refMin}
-                      onChange={(e) => setRefMin(e.target.value === '' ? '' : Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Ref Max</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                      value={refMax}
-                      onChange={(e) => setRefMax(e.target.value === '' ? '' : Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Unit</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                      value={unit}
-                      onChange={(e) => setUnit(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Auto Outlier Check Alert */}
-                <div
-                  className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between border ${
-                    isOutlier ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  }`}
-                >
-                  <span>Out-of-Range Status Check:</span>
-                  <span>{isOutlier ? '⚠️ High / Abnormal Flag' : '🟢 Within Normal Limits'}</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Technician Notes & Observations</label>
-                  <textarea
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs min-h-[60px]"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Technical observations..."
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition shadow-md shadow-teal-600/20"
-                >
-                  Submit Lab Results
-                </button>
-              </form>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label className="block text-xs font-bold text-slate-700 mb-1">Observed Result Value *</Label>
+              <Input type="number" step="0.1" {...form.register('resultValue', { valueAsNumber: true })} />
+              {form.formState.errors.resultValue && <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.resultValue.message}</p>}
             </div>
-          ) : (
-            <div className="p-8 text-center text-slate-400 text-xs font-medium">Select a diagnostic order from the queue</div>
-          )}
-        </div>
+
+            <div>
+              <Label className="block text-xs font-bold text-slate-700 mb-1">Unit of Measurement *</Label>
+              <Input placeholder="e.g. mg/dL, g/dL, IU/L" {...form.register('unit')} />
+              {form.formState.errors.unit && <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.unit.message}</p>}
+            </div>
+
+            <div>
+              <Label className="block text-xs font-bold text-slate-700 mb-1">Reference Range Min *</Label>
+              <Input type="number" step="0.1" {...form.register('refRangeMin', { valueAsNumber: true })} />
+              {form.formState.errors.refRangeMin && <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.refRangeMin.message}</p>}
+            </div>
+
+            <div>
+              <Label className="block text-xs font-bold text-slate-700 mb-1">Reference Range Max *</Label>
+              <Input type="number" step="0.1" {...form.register('refRangeMax', { valueAsNumber: true })} />
+              {form.formState.errors.refRangeMax && <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.refRangeMax.message}</p>}
+            </div>
+          </div>
+
+          <div>
+            <Label className="block text-xs font-bold text-slate-700 mb-1">Technician Clinical Notes</Label>
+            <textarea
+              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+              rows={3}
+              {...form.register('technicianNotes')}
+            />
+          </div>
+
+          <div className={`p-4 rounded-xl border flex items-center justify-between text-xs font-bold ${isOutlier ? 'bg-rose-50 text-rose-900 border-rose-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'}`}>
+            <span className="flex items-center gap-2">
+              {isOutlier ? <AlertTriangle className="w-4 h-4 text-rose-600" /> : <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+              Status: {isOutlier ? 'OUT OF RANGE / ABNORMAL FINDING DETECTED' : 'NORMAL REFERENCE RANGE'}
+            </span>
+            <span className="font-mono text-xs font-extrabold">{numVal} {form.watch('unit')} (Ref: {minVal}-{maxVal})</span>
+          </div>
+
+          <Button type="submit" disabled={resultMutation.isPending} className="w-full h-11 text-xs">
+            {resultMutation.isPending ? 'Submitting Result...' : 'Submit Lab Result & Run Reference Range Evaluator'}
+          </Button>
+        </form>
       </div>
     </div>
   );

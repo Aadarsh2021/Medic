@@ -1,90 +1,113 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { CalendarDays, Clock, ShieldAlert, CheckCircle, AlertCircle, User, Calendar, Plus, Stethoscope } from 'lucide-react';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CalendarDays, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { apiRequest } from '../services/api';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+
+const appointmentSchema = z.object({
+  doctorId: z.string().min(1, 'Please select a specialist physician'),
+  patientId: z.string().optional(),
+  appointmentDate: z.string().min(1, 'Please select a valid consultation date'),
+  slotTime: z.string().optional(),
+  type: z.enum(['REGULAR', 'EMERGENCY']),
+  reason: z.string().optional(),
+});
+
+type AppointmentFormValues = z.infer<typeof appointmentSchema>;
 
 export const AppointmentsView: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [doctors, setDoctors] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('');
-  const [selectedPatient, setSelectedPatient] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [slots, setSlots] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [isEmergency, setIsEmergency] = useState(false);
-  const [reason, setReason] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    Promise.all([
-      apiRequest('/auth/me').catch(() => null),
-      apiRequest('/users/doctors').catch(() => []),
-      apiRequest('/users/patients').catch(() => []),
-    ])
-      .then(([me, docs, pts]) => {
-        setCurrentUser(me);
-        let availableDocs = docs || [];
+  const { data: currentUser } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => apiRequest('/auth/me').catch(() => null),
+  });
 
-        if (me && me.role === 'DOCTOR' && me.doctorProfile) {
-          const myDocId = me.doctorProfile.id;
-          const myDoc = availableDocs.find((d: any) => d.id === myDocId);
-          if (myDoc) {
-            availableDocs = [myDoc];
-            setSelectedDoctor(myDocId);
-          } else if (availableDocs.length > 0) {
-            setSelectedDoctor(availableDocs[0].id);
-          }
-        } else if (availableDocs.length > 0) {
-          setSelectedDoctor(availableDocs[0].id);
-        }
+  const { data: doctors = [] } = useQuery({
+    queryKey: ['doctors'],
+    queryFn: () => apiRequest('/users/doctors').catch(() => []),
+  });
 
-        setDoctors(availableDocs);
-        setPatients(pts || []);
-        if (pts && pts.length > 0) setSelectedPatient(pts[0].id);
-      })
-      .catch(console.error);
-  }, []);
+  const { data: patients = [] } = useQuery({
+    queryKey: ['patients'],
+    queryFn: () => apiRequest('/users/patients').catch(() => []),
+  });
 
-  useEffect(() => {
-    if (!selectedDoctor || !date) return;
-    apiRequest(`/appointments/slots?doctorId=${selectedDoctor}&date=${date}`)
-      .then((res) => {
-        setSlots(res.slots || []);
-      })
-      .catch(console.error);
-  }, [selectedDoctor, date]);
+  const defaultDoctorId = doctors.length > 0 ? doctors[0].id : '';
+  const defaultPatientId = patients.length > 0 ? patients[0].id : '';
 
-  const handleBookAppointment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedSlot && !isEmergency) {
-      setMessage({ type: 'error', text: 'Please select an available time slot.' });
-      return;
-    }
+  const form = useForm<AppointmentFormValues>({
+    resolver: zodResolver(appointmentSchema as any),
+    defaultValues: {
+      doctorId: defaultDoctorId,
+      patientId: defaultPatientId,
+      appointmentDate: new Date().toISOString().split('T')[0],
+      slotTime: '',
+      type: 'REGULAR',
+      reason: '',
+    },
+  });
 
-    try {
-      await apiRequest('/appointments', {
+  const selectedDoctor = form.watch('doctorId') || defaultDoctorId;
+  const date = form.watch('appointmentDate');
+  const isEmergency = form.watch('type') === 'EMERGENCY';
+
+  const { data: slotsData } = useQuery({
+    queryKey: ['slots', selectedDoctor, date],
+    queryFn: () => apiRequest(`/appointments/slots?doctorId=${selectedDoctor}&date=${date}`).catch(() => ({ slots: [] })),
+    enabled: Boolean(selectedDoctor && date),
+  });
+
+  const slots = slotsData?.slots || [];
+
+  const bookMutation = useMutation({
+    mutationFn: (values: AppointmentFormValues) =>
+      apiRequest('/appointments', {
         method: 'POST',
         body: JSON.stringify({
-          doctorId: selectedDoctor,
-          patientId: selectedPatient || undefined,
-          appointmentDate: date,
-          slotTime: selectedSlot || '10:00',
-          type: isEmergency ? 'EMERGENCY' : 'REGULAR',
-          reason: reason || 'Routine Checkup',
+          doctorId: values.doctorId || selectedDoctor,
+          patientId: values.patientId || selectedPatientIdFallback,
+          appointmentDate: values.appointmentDate,
+          slotTime: selectedSlot || values.slotTime || '10:00',
+          type: values.type,
+          reason: values.reason || 'Routine Checkup',
         }),
+      }),
+    onSuccess: (data) => {
+      setMessage({
+        type: 'success',
+        text: isEmergency
+          ? '🚨 Emergency triage slot booked & physician alerted!'
+          : 'Appointment confirmed with concurrency lock!',
       });
+      queryClient.invalidateQueries({ queryKey: ['slots', selectedDoctor, date] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
+    onError: (err: any) => {
+      setMessage({ type: 'error', text: err.message || 'Appointment booking failed.' });
+    },
+  });
 
-      setMessage({ type: 'success', text: isEmergency ? '🚨 Emergency triage slot booked & physician alerted!' : 'Appointment confirmed with concurrency lock!' });
-      const res = await apiRequest(`/appointments/slots?doctorId=${selectedDoctor}&date=${date}`);
-      setSlots(res.slots || []);
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
-  };
-
+  const selectedPatientIdFallback = patients.length > 0 ? patients[0].id : undefined;
   const isDoctorRole = currentUser?.role === 'DOCTOR';
+
+  const onSubmit = (values: AppointmentFormValues) => {
+    if (!selectedSlot && !isEmergency) {
+      setMessage({ type: 'error', text: 'Please select an available 30-minute time slot.' });
+      return;
+    }
+    setMessage(null);
+    bookMutation.mutate(values);
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
@@ -103,44 +126,54 @@ export const AppointmentsView: React.FC = () => {
       </div>
 
       {message && (
-        <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
-          {message.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+        <div
+          className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+            message.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border border-rose-200'
+          }`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
           <span>{message.text}</span>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Booking Controls Form */}
-        <form onSubmit={handleBookAppointment} className="glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
           <h3 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2">
             {isEmergency ? '🚨 Emergency Triage Booking' : 'Schedule Outpatient Consultation'}
           </h3>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Select Specialist Physician *</label>
+            <Label className="block text-xs font-bold text-slate-700 mb-1">Select Specialist Physician *</Label>
             <select
               className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
-              value={selectedDoctor}
-              onChange={(e) => setSelectedDoctor(e.target.value)}
               disabled={isDoctorRole}
+              {...form.register('doctorId')}
             >
-              {doctors.map((d) => (
+              {doctors.map((d: any) => (
                 <option key={d.id} value={d.id}>
-                  Dr. {d.user?.firstName} {d.user?.lastName} ({d.specialisation}) — ${d.consultationFee} Fee
+                  Dr. {d.user?.firstName} {d.user?.lastName} ({d.specialisation}) — ₹{d.consultationFee} Fee
                 </option>
               ))}
             </select>
+            {form.formState.errors.doctorId && (
+              <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.doctorId.message}</p>
+            )}
           </div>
 
           {!isDoctorRole && (
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Select Patient Record *</label>
+              <Label className="block text-xs font-bold text-slate-700 mb-1">Select Patient Record *</Label>
               <select
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                value={selectedPatient}
-                onChange={(e) => setSelectedPatient(e.target.value)}
+                {...form.register('patientId')}
               >
-                {patients.map((p) => (
+                {patients.map((p: any) => (
                   <option key={p.id} value={p.id}>
                     {p.user?.firstName} {p.user?.lastName} ({p.mrn})
                   </option>
@@ -150,23 +183,22 @@ export const AppointmentsView: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Consultation Date *</label>
-            <input
+            <Label className="block text-xs font-bold text-slate-700 mb-1">Consultation Date *</Label>
+            <Input
               type="date"
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              className="font-bold"
+              {...form.register('appointmentDate')}
             />
+            {form.formState.errors.appointmentDate && (
+              <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.appointmentDate.message}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Reason for Visit</label>
-            <input
-              type="text"
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+            <Label className="block text-xs font-bold text-slate-700 mb-1">Reason for Visit</Label>
+            <Input
               placeholder="e.g. Chest pain, Routine Health Checkup"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              {...form.register('reason')}
             />
           </div>
 
@@ -176,24 +208,27 @@ export const AppointmentsView: React.FC = () => {
               id="emergencyCheck"
               className="w-4 h-4 text-rose-600 rounded"
               checked={isEmergency}
-              onChange={(e) => setIsEmergency(e.target.checked)}
+              onChange={(e) => form.setValue('type', e.target.checked ? 'EMERGENCY' : 'REGULAR')}
             />
             <label htmlFor="emergencyCheck" className="text-xs font-bold text-amber-900 cursor-pointer">
               Emergency Code Red Triage (Bypass Slot Capacity)
             </label>
           </div>
 
-          <button
+          <Button
             type="submit"
-            className={`w-full font-bold py-3 rounded-xl text-xs transition shadow-md ${
-              isEmergency ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20' : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20'
-            }`}
+            disabled={bookMutation.isPending}
+            variant={isEmergency ? 'destructive' : 'default'}
+            className="w-full h-10"
           >
-            {isEmergency ? 'Confirm Emergency Triage Booking' : 'Lock 30-Min Consultation Slot'}
-          </button>
+            {bookMutation.isPending
+              ? 'Processing Booking...'
+              : isEmergency
+              ? 'Confirm Emergency Triage Booking'
+              : 'Lock 30-Min Consultation Slot'}
+          </Button>
         </form>
 
-        {/* Available 30-Min Time Slots Allocation Matrix */}
         <div className="lg:col-span-2 glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
@@ -206,9 +241,9 @@ export const AppointmentsView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {slots.map((slot) => {
+            {slots.map((slot: any) => {
               const isSelected = selectedSlot === slot.time;
-              const isAvailable = slot.isAvailable;
+              const isAvailable = slot.available ?? slot.isAvailable ?? true;
 
               return (
                 <button
