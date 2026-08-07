@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { User, FileText, Download, Activity, Pill } from 'lucide-react';
 import { apiRequest } from '../services/api';

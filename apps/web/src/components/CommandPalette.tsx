@@ -1,14 +1,17 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Search, User, Stethoscope, Pill, X } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectResult: (view: string) => void;
 }
 
-export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSelectResult }) => {
+export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ patients: any[]; doctors: any[]; medicines: any[] }>({
     patients: [],
@@ -52,13 +55,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
     return () => clearTimeout(timer);
   }, [query]);
 
+  const handleSelect = (route: string) => {
+    router.push(route);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-start justify-center pt-20 p-4">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
         <div className="flex items-center px-4 border-b border-slate-200 bg-slate-50">
-          <Search className="w-5 h-5 text-blue-600 mr-3" />
+          <Search className="w-5 h-5 text-teal-600 mr-3" />
           <input
             autoFocus
             type="text"
@@ -82,20 +90,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
           {results.patients.length > 0 && (
             <div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-blue-600" /> Patients
+                <User className="w-3.5 h-3.5 text-teal-600" /> Patients
               </div>
               <div className="space-y-1">
                 {results.patients.map((p) => (
                   <div
                     key={p.id}
-                    onClick={() => { onSelectResult('doctor-portal'); onClose(); }}
-                    className="p-3 hover:bg-blue-50/60 rounded-xl cursor-pointer flex items-center justify-between text-xs transition border border-transparent hover:border-blue-100"
+                    onClick={() => handleSelect('/doctor-portal')}
+                    className="p-3 hover:bg-teal-50/60 rounded-xl cursor-pointer flex items-center justify-between text-xs transition border border-transparent hover:border-teal-100"
                   >
                     <div>
                       <div className="font-bold text-slate-900">{p.user?.firstName} {p.user?.lastName}</div>
                       <div className="text-slate-500 text-[11px] font-medium">MRN: {p.mrn} • Blood Group: {p.bloodGroup || 'A+'}</div>
                     </div>
-                    <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded border border-blue-200">View Records</span>
+                    <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded border border-teal-200">View Records</span>
                   </div>
                 ))}
               </div>
@@ -111,12 +119,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
                 {results.doctors.map((d) => (
                   <div
                     key={d.id}
-                    onClick={() => { onSelectResult('appointments'); onClose(); }}
+                    onClick={() => handleSelect('/appointments')}
                     className="p-3 hover:bg-emerald-50/60 rounded-xl cursor-pointer flex items-center justify-between text-xs transition border border-transparent hover:border-emerald-100"
                   >
                     <div>
                       <div className="font-bold text-slate-900">Dr. {d.user?.firstName} {d.user?.lastName}</div>
-                      <div className="text-slate-500 text-[11px] font-medium">{d.specialisation} • Fee: ${d.consultationFee}</div>
+                      <div className="text-slate-500 text-[11px] font-medium">{d.specialisation} • Fee: ₹{d.consultationFee}</div>
                     </div>
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">Book Slot</span>
                   </div>
@@ -134,12 +142,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
                 {results.medicines.map((m) => (
                   <div
                     key={m.id}
-                    onClick={() => { onSelectResult('pharmacy'); onClose(); }}
+                    onClick={() => handleSelect('/pharmacy')}
                     className="p-3 hover:bg-teal-50/60 rounded-xl cursor-pointer flex items-center justify-between text-xs transition border border-transparent hover:border-teal-100"
                   >
                     <div>
                       <div className="font-bold text-slate-900">{m.name}</div>
-                      <div className="text-slate-500 text-[11px] font-medium">{m.category} • {m.form} • MRP: ${m.mrp}</div>
+                      <div className="text-slate-500 text-[11px] font-medium">{m.category} • {m.form} • MRP: ₹{m.mrp}</div>
                     </div>
                     <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded border border-teal-200">Dispense</span>
                   </div>

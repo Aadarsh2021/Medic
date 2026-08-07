@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { CalendarDays, Clock, ShieldAlert, CheckCircle, AlertCircle, User, Calendar, Plus, Stethoscope } from 'lucide-react';
 import { apiRequest } from '../services/api';

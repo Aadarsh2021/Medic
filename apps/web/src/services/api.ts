@@ -1,7 +1,7 @@
-const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5555';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
 
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('accessToken');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -24,3 +24,5 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
 
   return json.data;
 }
+
+export { API_BASE };

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { FlaskConical, AlertTriangle, CheckCircle2, ShieldCheck, FileSpreadsheet, TestTube, Microscope } from 'lucide-react';
 import { apiRequest } from '../services/api';

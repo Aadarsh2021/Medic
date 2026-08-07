@@ -1,4 +1,10 @@
+'use client';
+
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useRouter } from 'next/navigation';
 import {
   Building2,
   Lock,
@@ -10,91 +16,108 @@ import {
   ShieldCheck,
   UserCheck,
   ChevronDown,
-  Stethoscope,
 } from 'lucide-react';
 import { Role } from '../types';
 import { apiRequest } from '../services/api';
+import { useAuthStore } from '../store/useAuthStore';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
-interface AuthViewProps {
-  onAuthSuccess: (user: any, token: string) => void;
-  onGoToHome?: () => void;
-}
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
 
-export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome }) => {
+const registerSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Please enter a valid work email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.string(),
+  hospitalId: z.string().optional(),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
+
+export const AuthView: React.FC = () => {
+  const router = useRouter();
+  const { setAuth } = useAuthStore();
   const [tab, setTab] = useState<'login' | 'register'>('login');
-
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('superadmin@medcore.org');
-  const [loginPassword, setLoginPassword] = useState('Password123!');
-
-  // Register form state
-  const [regFirstName, setRegFirstName] = useState('');
-  const [regLastName, setRegLastName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regPassword, setRegPassword] = useState('Password123!');
-  const [regRole, setRegRole] = useState<Role>('PATIENT');
-  const [regHospitalId, setRegHospitalId] = useState('');
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [showDemoAccounts, setShowDemoAccounts] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema as any),
+    defaultValues: {
+      email: 'superadmin@medcore.org',
+      password: 'Password123!',
+    },
+  });
+
+  const registerForm = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema as any),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: 'Password123!',
+      role: 'PATIENT',
+      hospitalId: '',
+    },
+  });
 
   React.useEffect(() => {
     apiRequest('/hospitals')
       .then((data) => {
         setHospitals(data || []);
-        if (data && data.length > 0) setRegHospitalId(data[0].id);
+        if (data && data.length > 0) {
+          registerForm.setValue('hospitalId', data[0].id);
+        }
       })
       .catch(() => {});
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLoginSubmit = async (values: LoginFormValues) => {
     setLoading(true);
     setMessage(null);
 
     try {
       const data = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify(values),
       });
       setLoading(false);
-      onAuthSuccess(data.user, data.accessToken);
+      setAuth(data.user, data.accessToken);
+      router.push('/dashboard');
     } catch (err: any) {
       setLoading(false);
       setMessage({ type: 'error', text: err.message || 'Authentication failed. Please verify credentials.' });
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRegisterSubmit = async (values: RegisterFormValues) => {
     setLoading(true);
     setMessage(null);
 
     try {
       await apiRequest('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({
-          email: regEmail,
-          password: regPassword,
-          firstName: regFirstName,
-          lastName: regLastName,
-          phone: regPhone,
-          role: regRole,
-          hospitalId: regHospitalId,
-        }),
+        body: JSON.stringify(values),
       });
 
       setMessage({ type: 'success', text: 'Hospital user registered successfully! Authenticating session...' });
 
       const loginData = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: regEmail, password: regPassword }),
+        body: JSON.stringify({ email: values.email, password: values.password }),
       });
       setLoading(false);
-      onAuthSuccess(loginData.user, loginData.accessToken);
+      setAuth(loginData.user, loginData.accessToken);
+      router.push('/dashboard');
     } catch (err: any) {
       setLoading(false);
       setMessage({ type: 'error', text: err.message || 'Registration failed.' });
@@ -115,7 +138,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col justify-between font-sans">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 sm:px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center text-white shadow-xs">
@@ -127,20 +149,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
           </div>
         </div>
 
-        {onGoToHome && (
-          <button
-            onClick={onGoToHome}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-teal-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition"
-          >
-            <Home className="w-4 h-4" /> Hospital Home Page
-          </button>
-        )}
+        <button
+          onClick={() => router.push('/')}
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-teal-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition"
+        >
+          <Home className="w-4 h-4" /> Hospital Home Page
+        </button>
       </header>
 
-      {/* Main Login Panel */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 my-6">
         <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
-          {/* Card Header */}
           <div className="p-6 bg-gradient-to-b from-slate-50 to-white border-b border-slate-200 text-center">
             <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 mx-auto mb-3 shadow-2xs">
               <ShieldCheck className="w-6 h-6" />
@@ -148,7 +166,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
             <h2 className="text-xl font-bold text-slate-900">Clinical Staff Authentication</h2>
             <p className="text-xs text-slate-500 font-medium mt-1">Single Sign-On (SSO) Portal for Hospital System Access</p>
 
-            {/* Tab Switcher */}
             <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl mt-4 border border-slate-200">
               <button
                 onClick={() => { setTab('login'); setMessage(null); }}
@@ -180,90 +197,89 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
             )}
 
             {tab === 'login' ? (
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Hospital Staff Email / User ID</label>
+                  <Label className="block text-xs font-bold text-slate-700 mb-1">Hospital Staff Email / User ID</Label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 z-10" />
+                    <Input
                       type="email"
-                      required
-                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-teal-600 focus:bg-white transition"
+                      className="pl-9"
                       placeholder="dr.sharma@medcore.org"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
+                      {...loginForm.register('email')}
                     />
                   </div>
+                  {loginForm.formState.errors.email && (
+                    <p className="text-[10px] text-rose-600 font-semibold mt-1">{loginForm.formState.errors.email.message}</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                  <Label className="block text-xs font-bold text-slate-700 mb-1">Password</Label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 z-10" />
+                    <Input
                       type="password"
-                      required
-                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-teal-600 focus:bg-white transition"
+                      className="pl-9"
                       placeholder="••••••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
+                      {...loginForm.register('password')}
                     />
                   </div>
+                  {loginForm.formState.errors.password && (
+                    <p className="text-[10px] text-rose-600 font-semibold mt-1">{loginForm.formState.errors.password.message}</p>
+                  )}
                 </div>
 
-                <button
+                <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-teal-600/20 flex items-center justify-center gap-2"
+                  className="w-full h-10 gap-2"
                 >
                   {loading ? 'Authenticating...' : 'Sign In to Clinical Workspace'} <ArrowRight className="w-4 h-4" />
-                </button>
+                </Button>
               </form>
             ) : (
-              <form onSubmit={handleRegister} className="space-y-3">
+              <form onSubmit={registerForm.handleSubmit(handleRegisterSubmit)} className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">First Name *</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                    <Label className="block text-[11px] font-bold text-slate-700 mb-1">First Name *</Label>
+                    <Input
                       placeholder="Rahul"
-                      value={regFirstName}
-                      onChange={(e) => setRegFirstName(e.target.value)}
+                      {...registerForm.register('firstName')}
                     />
+                    {registerForm.formState.errors.firstName && (
+                      <p className="text-[10px] text-rose-600 font-semibold mt-1">{registerForm.formState.errors.firstName.message}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Last Name *</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                    <Label className="block text-[11px] font-bold text-slate-700 mb-1">Last Name *</Label>
+                    <Input
                       placeholder="Verma"
-                      value={regLastName}
-                      onChange={(e) => setRegLastName(e.target.value)}
+                      {...registerForm.register('lastName')}
                     />
+                    {registerForm.formState.errors.lastName && (
+                      <p className="text-[10px] text-rose-600 font-semibold mt-1">{registerForm.formState.errors.lastName.message}</p>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Work Email *</label>
-                  <input
+                  <Label className="block text-[11px] font-bold text-slate-700 mb-1">Work Email *</Label>
+                  <Input
                     type="email"
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                     placeholder="r.verma@medcore.org"
-                    value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
+                    {...registerForm.register('email')}
                   />
+                  {registerForm.formState.errors.email && (
+                    <p className="text-[10px] text-rose-600 font-semibold mt-1">{registerForm.formState.errors.email.message}</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Assign System Role *</label>
+                  <Label className="block text-[11px] font-bold text-slate-700 mb-1">Assign System Role *</Label>
                   <select
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
-                    value={regRole}
-                    onChange={(e) => setRegRole(e.target.value as Role)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"
+                    {...registerForm.register('role')}
                   >
                     <option value="PATIENT">Patient Portal User</option>
                     <option value="DOCTOR">Doctor / Clinical Specialist</option>
@@ -278,11 +294,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
 
                 {hospitals.length > 0 && (
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Assign Hospital Branch</label>
+                    <Label className="block text-[11px] font-bold text-slate-700 mb-1">Assign Hospital Branch</Label>
                     <select
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
-                      value={regHospitalId}
-                      onChange={(e) => setRegHospitalId(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                      {...registerForm.register('hospitalId')}
                     >
                       {hospitals.map((h) => (
                         <option key={h.id} value={h.id}>
@@ -294,28 +309,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Password *</label>
-                  <input
+                  <Label className="block text-[11px] font-bold text-slate-700 mb-1">Password *</Label>
+                  <Input
                     type="password"
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                     placeholder="••••••••••••"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
+                    {...registerForm.register('password')}
                   />
+                  {registerForm.formState.errors.password && (
+                    <p className="text-[10px] text-rose-600 font-semibold mt-1">{registerForm.formState.errors.password.message}</p>
+                  )}
                 </div>
 
-                <button
+                <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-teal-600/20"
+                  className="w-full h-10"
                 >
                   {loading ? 'Creating User...' : 'Complete Registration'}
-                </button>
+                </Button>
               </form>
             )}
 
-            {/* Authorized Demo Credentials Collapsible Drawer */}
             <div className="mt-6 pt-4 border-t border-slate-200">
               <button
                 type="button"
@@ -335,8 +349,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
                       key={acc.email}
                       type="button"
                       onClick={() => {
-                        setLoginEmail(acc.email);
-                        setLoginPassword('Password123!');
+                        loginForm.setValue('email', acc.email);
+                        loginForm.setValue('password', 'Password123!');
                         setTab('login');
                       }}
                       className="p-2 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 border border-slate-200 rounded-lg text-left transition"
@@ -352,7 +366,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess, onGoToHome })
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500">
         MedCore HMS Enterprise Security Gateway • NABH & HL7 Compliant
       </footer>

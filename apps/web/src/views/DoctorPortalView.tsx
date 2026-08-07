@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Stethoscope, User, Heart, Pill, Plus, CheckCircle, AlertCircle, ShieldAlert, Syringe, Users, Printer, FileText, Activity } from 'lucide-react';
 import { apiRequest } from '../services/api';

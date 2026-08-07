@@ -1,4 +1,7 @@
+'use client';
+
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Bell,
   Search,
@@ -13,16 +16,15 @@ import {
   Receipt,
   Activity,
   ChevronDown,
-  ShieldCheck,
 } from 'lucide-react';
 import { User as UserType, NotificationItem } from '../types';
+import { useAuthStore } from '../store/useAuthStore';
 
 interface NavbarProps {
   currentUser: UserType | null;
   notifications: NotificationItem[];
   unreadCount: number;
   onOpenSearch: () => void;
-  onLogout: () => void;
   onMarkNotificationRead: (id: string) => void;
   onToggleMobileSidebar: () => void;
 }
@@ -32,37 +34,56 @@ export const Navbar: React.FC<NavbarProps> = ({
   notifications,
   unreadCount,
   onOpenSearch,
-  onLogout,
   onMarkNotificationRead,
   onToggleMobileSidebar,
 }) => {
+  const router = useRouter();
+  const { logout } = useAuthStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const getPortalMeta = () => {
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
+  const getPortalTitle = () => {
     switch (currentUser?.role) {
       case 'DOCTOR':
-        return { title: 'Clinical Doctor Desk', icon: Stethoscope };
+        return 'Clinical Doctor Desk';
       case 'PATIENT':
-        return { title: 'Patient Health Portal', icon: User };
+        return 'Patient Health Portal';
       case 'PHARMACIST':
-        return { title: 'Pharmacy Inventory', icon: Pill };
+        return 'Pharmacy Inventory';
       case 'LAB_TECHNICIAN':
-        return { title: 'Diagnostics Laboratory', icon: FlaskConical };
+        return 'Diagnostics Laboratory';
       case 'ACCOUNTANT':
-        return { title: 'Billing & Ledger', icon: Receipt };
+        return 'Billing & Ledger';
       default:
-        return { title: 'Executive Operations', icon: Building2 };
+        return 'Executive Operations';
     }
   };
 
-  const portalMeta = getPortalMeta();
-  const PortalIcon = portalMeta.icon;
+  const renderPortalIcon = () => {
+    switch (currentUser?.role) {
+      case 'DOCTOR':
+        return <Stethoscope className="w-5 h-5" />;
+      case 'PATIENT':
+        return <User className="w-5 h-5" />;
+      case 'PHARMACIST':
+        return <Pill className="w-5 h-5" />;
+      case 'LAB_TECHNICIAN':
+        return <FlaskConical className="w-5 h-5" />;
+      case 'ACCOUNTANT':
+        return <Receipt className="w-5 h-5" />;
+      default:
+        return <Building2 className="w-5 h-5" />;
+    }
+  };
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 shadow-2xs">
       <div className="flex items-center gap-3">
-        {/* Mobile Hamburger Drawer Toggle */}
         <button
           onClick={onToggleMobileSidebar}
           className="lg:hidden p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
@@ -72,12 +93,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-600 flex items-center justify-center text-white shadow-xs">
-            <PortalIcon className="w-5 h-5" />
+            {renderPortalIcon()}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-none">
-                MedCore <span className="text-teal-600">{portalMeta.title}</span>
+                MedCore <span className="text-teal-600">{getPortalTitle()}</span>
               </h1>
               <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Network Active
@@ -91,7 +112,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="flex items-center gap-2.5">
-        {/* Live Emergency Triage Status Ticker */}
         <div className="hidden xl:flex items-center gap-2 px-3 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700">
           <Activity className="w-3.5 h-3.5 text-teal-600" />
           <span>OPD Queue: <strong>Normal</strong></span>
@@ -99,7 +119,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span>Trauma Bay 1: <strong className="text-emerald-700">Ready</strong></span>
         </div>
 
-        {/* Global Search Button */}
         <button
           onClick={onOpenSearch}
           className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium transition"
@@ -109,7 +128,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <kbd className="hidden sm:inline bg-white text-slate-500 px-1.5 py-0.5 rounded text-[10px] border border-slate-300 font-mono">⌘K</kbd>
         </button>
 
-        {/* Real-time Notifications Bell */}
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
@@ -153,7 +171,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* User Profile Menu */}
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
@@ -179,7 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
               <button
-                onClick={onLogout}
+                onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 font-semibold hover:bg-rose-50 rounded-lg transition mt-1"
               >
                 <LogOut className="w-3.5 h-3.5" /> End Session & Log Out

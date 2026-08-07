@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Stethoscope,
@@ -9,85 +12,105 @@ import {
   User,
   ShieldCheck,
   X,
-  FileText,
   Activity,
 } from 'lucide-react';
 import { Role } from '../types';
 
 interface SidebarProps {
-  activeView: string;
-  onSelectView: (view: string) => void;
   userRole?: Role;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  activeView,
-  onSelectView,
   userRole = 'SUPER_ADMIN',
   isOpenMobile,
   onCloseMobile,
 }) => {
-  // Role-Specific Navigation Menus
-  const roleMenus: Record<Role, { id: string; label: string; icon: any }[]> = {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const roleMenus: Record<Role, { id: string; route: string; label: string; iconId: string }[]> = {
     SUPER_ADMIN: [
-      { id: 'dashboard', label: 'Executive Operations', icon: LayoutDashboard },
-      { id: 'appointments', label: 'Hospital Scheduling', icon: CalendarDays },
-      { id: 'doctor-portal', label: 'Clinical Encounters', icon: Stethoscope },
-      { id: 'lab', label: 'Laboratory Diagnostics', icon: FlaskConical },
-      { id: 'pharmacy', label: 'Pharmacy Inventory', icon: Pill },
-      { id: 'billing', label: 'Revenue & Billing', icon: Receipt },
-      { id: 'audit-logs', label: 'Security Audit Logs', icon: ShieldCheck },
+      { id: 'dashboard', route: '/dashboard', label: 'Executive Operations', iconId: 'dashboard' },
+      { id: 'appointments', route: '/appointments', label: 'Hospital Scheduling', iconId: 'appointments' },
+      { id: 'doctor-portal', route: '/doctor-portal', label: 'Clinical Encounters', iconId: 'doctor-portal' },
+      { id: 'lab', route: '/laboratory', label: 'Laboratory Diagnostics', iconId: 'lab' },
+      { id: 'pharmacy', route: '/pharmacy', label: 'Pharmacy Inventory', iconId: 'pharmacy' },
+      { id: 'billing', route: '/billing', label: 'Revenue & Billing', iconId: 'billing' },
+      { id: 'audit-logs', route: '/audit-logs', label: 'Security Audit Logs', iconId: 'audit-logs' },
     ],
     HOSPITAL_ADMIN: [
-      { id: 'dashboard', label: 'Executive Operations', icon: LayoutDashboard },
-      { id: 'appointments', label: 'Hospital Scheduling', icon: CalendarDays },
-      { id: 'doctor-portal', label: 'Doctor EMR Encounters', icon: Stethoscope },
-      { id: 'lab', label: 'Laboratory Workflows', icon: FlaskConical },
-      { id: 'pharmacy', label: 'Pharmacy Stock', icon: Pill },
-      { id: 'billing', label: 'Billing Ledger', icon: Receipt },
-      { id: 'audit-logs', label: 'Security Audit Logs', icon: ShieldCheck },
+      { id: 'dashboard', route: '/dashboard', label: 'Executive Operations', iconId: 'dashboard' },
+      { id: 'appointments', route: '/appointments', label: 'Hospital Scheduling', iconId: 'appointments' },
+      { id: 'doctor-portal', route: '/doctor-portal', label: 'Doctor EMR Encounters', iconId: 'doctor-portal' },
+      { id: 'lab', route: '/laboratory', label: 'Laboratory Workflows', iconId: 'lab' },
+      { id: 'pharmacy', route: '/pharmacy', label: 'Pharmacy Stock', iconId: 'pharmacy' },
+      { id: 'billing', route: '/billing', label: 'Billing Ledger', iconId: 'billing' },
+      { id: 'audit-logs', route: '/audit-logs', label: 'Security Audit Logs', iconId: 'audit-logs' },
     ],
     DOCTOR: [
-      { id: 'doctor-portal', label: 'Clinical EMR Encounters', icon: Stethoscope },
-      { id: 'appointments', label: 'My Consultation Schedule', icon: CalendarDays },
-      { id: 'lab', label: 'Patient Lab Orders', icon: FlaskConical },
-      { id: 'pharmacy', label: 'Medicine Formulary', icon: Pill },
+      { id: 'doctor-portal', route: '/doctor-portal', label: 'Clinical EMR Encounters', iconId: 'doctor-portal' },
+      { id: 'appointments', route: '/appointments', label: 'My Consultation Schedule', iconId: 'appointments' },
+      { id: 'lab', route: '/laboratory', label: 'Patient Lab Orders', iconId: 'lab' },
+      { id: 'pharmacy', route: '/pharmacy', label: 'Medicine Formulary', iconId: 'pharmacy' },
     ],
     PATIENT: [
-      { id: 'patient-portal', label: 'My Health Timeline', icon: User },
-      { id: 'appointments', label: 'Book Consultation', icon: CalendarDays },
-      { id: 'patient-portal', label: 'My Prescriptions & Reports', icon: FileText },
-      { id: 'patient-portal', label: 'My Invoices & Receipts', icon: Receipt },
+      { id: 'patient-portal', route: '/patient-portal', label: 'My Health Timeline', iconId: 'patient-portal' },
+      { id: 'appointments', route: '/appointments', label: 'Book Consultation', iconId: 'appointments' },
     ],
     PHARMACIST: [
-      { id: 'pharmacy', label: 'Pharmacy Formulary Stock', icon: Pill },
-      { id: 'pharmacy', label: 'FIFO Batch Allocation', icon: Pill },
-      { id: 'billing', label: 'Pharmacy Billing', icon: Receipt },
+      { id: 'pharmacy', route: '/pharmacy', label: 'Pharmacy Formulary Stock', iconId: 'pharmacy' },
+      { id: 'billing', route: '/billing', label: 'Pharmacy Billing', iconId: 'billing' },
     ],
     LAB_TECHNICIAN: [
-      { id: 'lab', label: 'Diagnostic Orders Queue', icon: FlaskConical },
-      { id: 'lab', label: 'Result Entry & Verification', icon: FlaskConical },
-      { id: 'lab', label: 'Approved Reports Archive', icon: FlaskConical },
+      { id: 'lab', route: '/laboratory', label: 'Diagnostic Orders Queue', iconId: 'lab' },
     ],
     ACCOUNTANT: [
-      { id: 'billing', label: 'Invoices & Payments Ledger', icon: Receipt },
-      { id: 'dashboard', label: 'Revenue Telemetry', icon: LayoutDashboard },
+      { id: 'billing', route: '/billing', label: 'Invoices & Payments Ledger', iconId: 'billing' },
+      { id: 'dashboard', route: '/dashboard', label: 'Revenue Telemetry', iconId: 'dashboard' },
     ],
     RECEPTIONIST: [
-      { id: 'appointments', label: 'Front-Desk Booking Engine', icon: CalendarDays },
-      { id: 'billing', label: 'Patient Invoicing', icon: Receipt },
+      { id: 'appointments', route: '/appointments', label: 'Front-Desk Booking Engine', iconId: 'appointments' },
+      { id: 'billing', route: '/billing', label: 'Patient Invoicing', iconId: 'billing' },
     ],
     NURSE: [
-      { id: 'doctor-portal', label: 'Ward Patient Queue', icon: Stethoscope },
-      { id: 'appointments', label: 'Appointments Timeline', icon: CalendarDays },
+      { id: 'doctor-portal', route: '/doctor-portal', label: 'Ward Patient Queue', iconId: 'doctor-portal' },
+      { id: 'appointments', route: '/appointments', label: 'Appointments Timeline', iconId: 'appointments' },
     ],
   };
 
   const currentMenu = roleMenus[userRole] || roleMenus.SUPER_ADMIN;
 
-  const sidebarContent = (
+  const handleNavigate = (route: string) => {
+    router.push(route);
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const renderMenuIcon = (iconId: string, className: string) => {
+    switch (iconId) {
+      case 'dashboard':
+        return <LayoutDashboard className={className} />;
+      case 'appointments':
+        return <CalendarDays className={className} />;
+      case 'doctor-portal':
+        return <Stethoscope className={className} />;
+      case 'lab':
+        return <FlaskConical className={className} />;
+      case 'pharmacy':
+        return <Pill className={className} />;
+      case 'billing':
+        return <Receipt className={className} />;
+      case 'audit-logs':
+        return <ShieldCheck className={className} />;
+      case 'patient-portal':
+        return <User className={className} />;
+      default:
+        return <LayoutDashboard className={className} />;
+    }
+  };
+
+  const renderContent = () => (
     <div className="h-full flex flex-col justify-between p-4 bg-[#0a101d] text-slate-300">
       <div className="space-y-1">
         <div className="flex items-center justify-between px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
@@ -100,16 +123,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {currentMenu.map((item, idx) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.id;
+          const isActive = pathname === item.route;
 
           return (
             <button
               key={`${item.id}-${idx}`}
-              onClick={() => {
-                onSelectView(item.id);
-                if (onCloseMobile) onCloseMobile();
-              }}
+              onClick={() => handleNavigate(item.route)}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
                 isActive
                   ? 'bg-teal-600 text-white font-bold shadow-md shadow-teal-900/40'
@@ -117,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <div className="flex items-center gap-3">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                {renderMenuIcon(item.iconId, `w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`)}
                 <span>{item.label}</span>
               </div>
             </button>
@@ -139,17 +158,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <aside className="hidden lg:block w-64 border-r border-slate-800 shrink-0">
-        {sidebarContent}
+        {renderContent()}
       </aside>
 
-      {/* Mobile Drawer Overlay */}
       {isOpenMobile && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs" onClick={onCloseMobile}></div>
           <div className="relative w-64 bg-[#0a101d] border-r border-slate-800 z-10 shadow-2xl">
-            {sidebarContent}
+            {renderContent()}
           </div>
         </div>
       )}

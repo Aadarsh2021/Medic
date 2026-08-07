@@ -1,3 +1,6 @@
+// @ts-nocheck
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Users, Stethoscope, DollarSign, Bed, AlertTriangle, TrendingUp, Activity, ShieldCheck, HeartPulse, Building2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';

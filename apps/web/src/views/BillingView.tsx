@@ -1,4 +1,6 @@
-import { useState, useEffect, FormEvent } from 'react';
+'use client';
+
+import React, { useState, useEffect, FormEvent } from 'react';
 import { Receipt, CreditCard, CheckCircle2, Plus, Download } from 'lucide-react';
 import { apiRequest } from '../services/api';
 

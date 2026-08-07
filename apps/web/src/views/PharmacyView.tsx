@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, FormEvent } from 'react';
 import { Pill, AlertOctagon, CheckCircle2, Layers, Clock, ShieldCheck } from 'lucide-react';
 import { apiRequest } from '../services/api';

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, RefreshCw } from 'lucide-react';
 import { apiRequest } from '../services/api';
