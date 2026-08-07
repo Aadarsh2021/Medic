@@ -9,7 +9,11 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "db:seed": "ts-node prisma/seed.ts",
     "test": "jest --config test/jest-e2e.json --detectOpenHandles --forceExit"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@medcore/types": "*",

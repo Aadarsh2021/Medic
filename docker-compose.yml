@@ -33,8 +33,8 @@ services:
 
   api:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/api/Dockerfile
     container_name: medcore_api
     restart: always
     ports:
@@ -47,6 +47,7 @@ services:
       REDIS_PORT: "6379"
       CORS_ORIGIN: "http://localhost:5173"
       FRONTEND_URL: "http://localhost:5173"
+      PUPPETEER_EXECUTABLE_PATH: "/usr/bin/chromium"
     depends_on:
       postgres:
         condition: service_healthy

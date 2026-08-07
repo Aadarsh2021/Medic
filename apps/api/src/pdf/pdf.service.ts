@@ -20,6 +20,7 @@ export class PdfService implements OnModuleDestroy {
     if (!this.browser || !this.browser.connected) {
       this.logger.log('Launching Puppeteer Headless Chromium instance...');
       this.browser = await puppeteer.launch({
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
         headless: true,
         args: [
           '--no-sandbox',
