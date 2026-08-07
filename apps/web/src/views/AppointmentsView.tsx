@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -32,24 +32,29 @@ export const AppointmentsView: React.FC = () => {
     queryFn: () => apiRequest('/auth/me').catch(() => null),
   });
 
-  const { data: doctors = [] } = useQuery({
+  const {
+    data: doctors = [],
+    isLoading: isDoctorsLoading,
+    isError: isDoctorsError,
+  } = useQuery({
     queryKey: ['doctors'],
     queryFn: () => apiRequest('/users/doctors').catch(() => []),
   });
 
-  const { data: patients = [] } = useQuery({
+  const {
+    data: patients = [],
+    isLoading: isPatientsLoading,
+    isError: isPatientsError,
+  } = useQuery({
     queryKey: ['patients'],
     queryFn: () => apiRequest('/users/patients').catch(() => []),
   });
 
-  const defaultDoctorId = doctors.length > 0 ? doctors[0].id : '';
-  const defaultPatientId = patients.length > 0 ? patients[0].id : '';
-
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema as any),
     defaultValues: {
-      doctorId: defaultDoctorId,
-      patientId: defaultPatientId,
+      doctorId: '',
+      patientId: '',
       appointmentDate: new Date().toISOString().split('T')[0],
       slotTime: '',
       type: 'REGULAR',
@@ -57,11 +62,27 @@ export const AppointmentsView: React.FC = () => {
     },
   });
 
-  const selectedDoctor = form.watch('doctorId') || defaultDoctorId;
+  useEffect(() => {
+    if (doctors.length > 0 && !form.getValues('doctorId')) {
+      form.setValue('doctorId', doctors[0].id);
+    }
+  }, [doctors, form]);
+
+  useEffect(() => {
+    if (patients.length > 0 && !form.getValues('patientId')) {
+      form.setValue('patientId', patients[0].id);
+    }
+  }, [patients, form]);
+
+  const selectedDoctor = form.watch('doctorId') || (doctors.length > 0 ? doctors[0].id : '');
   const date = form.watch('appointmentDate');
   const isEmergency = form.watch('type') === 'EMERGENCY';
 
-  const { data: slotsData } = useQuery({
+  const {
+    data: slotsData,
+    isLoading: isSlotsLoading,
+    isError: isSlotsError,
+  } = useQuery({
     queryKey: ['slots', selectedDoctor, date],
     queryFn: () => apiRequest(`/appointments/slots?doctorId=${selectedDoctor}&date=${date}`).catch(() => ({ slots: [] })),
     enabled: Boolean(selectedDoctor && date),
@@ -75,14 +96,14 @@ export const AppointmentsView: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           doctorId: values.doctorId || selectedDoctor,
-          patientId: values.patientId || selectedPatientIdFallback,
+          patientId: values.patientId || (patients.length > 0 ? patients[0].id : undefined),
           appointmentDate: values.appointmentDate,
           slotTime: selectedSlot || values.slotTime || '10:00',
           type: values.type,
           reason: values.reason || 'Routine Checkup',
         }),
       }),
-    onSuccess: (data) => {
+    onSuccess: () => {
       setMessage({
         type: 'success',
         text: isEmergency
@@ -97,7 +118,6 @@ export const AppointmentsView: React.FC = () => {
     },
   });
 
-  const selectedPatientIdFallback = patients.length > 0 ? patients[0].id : undefined;
   const isDoctorRole = currentUser?.role === 'DOCTOR';
 
   const onSubmit = (values: AppointmentFormValues) => {
@@ -117,7 +137,7 @@ export const AppointmentsView: React.FC = () => {
             <CalendarDays className="w-5 h-5 text-teal-600" />
             {isDoctorRole ? 'Doctor Schedule & Availability Allocation' : 'Hospital OPD Appointment Engine'}
           </h2>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-xs text-slate-600 font-medium mt-1">
             {isDoctorRole
               ? 'Manage 30-minute consultation slots and review patient bookings'
               : 'Optimistic slot lock engine preventing double booking and emergency triage override'}
@@ -143,23 +163,31 @@ export const AppointmentsView: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <form onSubmit={form.handleSubmit(onSubmit)} className="glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
-          <h3 className="font-bold text-sm text-slate-900 border-b border-slate-100 pb-2">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4 shadow-2xs">
+          <h3 className="font-extrabold text-sm text-slate-900 border-b border-slate-200 pb-2">
             {isEmergency ? '🚨 Emergency Triage Booking' : 'Schedule Outpatient Consultation'}
           </h3>
 
           <div>
             <Label className="block text-xs font-bold text-slate-700 mb-1">Select Specialist Physician *</Label>
             <select
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
-              disabled={isDoctorRole}
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"
+              disabled={isDoctorRole || isDoctorsLoading}
               {...form.register('doctorId')}
             >
-              {doctors.map((d: any) => (
-                <option key={d.id} value={d.id}>
-                  Dr. {d.user?.firstName} {d.user?.lastName} ({d.specialisation}) — ₹{d.consultationFee} Fee
-                </option>
-              ))}
+              {isDoctorsLoading ? (
+                <option value="" disabled>Loading specialist physicians...</option>
+              ) : isDoctorsError ? (
+                <option value="" disabled>Unable to load doctors</option>
+              ) : doctors.length === 0 ? (
+                <option value="" disabled>No doctors available</option>
+              ) : (
+                doctors.map((d: any) => (
+                  <option key={d.id} value={d.id}>
+                    Dr. {d.user?.firstName} {d.user?.lastName} ({d.specialisation}) — ₹{d.consultationFee} Fee
+                  </option>
+                ))
+              )}
             </select>
             {form.formState.errors.doctorId && (
               <p className="text-[10px] text-rose-600 font-semibold mt-1">{form.formState.errors.doctorId.message}</p>
@@ -170,14 +198,23 @@ export const AppointmentsView: React.FC = () => {
             <div>
               <Label className="block text-xs font-bold text-slate-700 mb-1">Select Patient Record *</Label>
               <select
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"
+                disabled={isPatientsLoading}
                 {...form.register('patientId')}
               >
-                {patients.map((p: any) => (
-                  <option key={p.id} value={p.id}>
-                    {p.user?.firstName} {p.user?.lastName} ({p.mrn})
-                  </option>
-                ))}
+                {isPatientsLoading ? (
+                  <option value="" disabled>Loading patient records...</option>
+                ) : isPatientsError ? (
+                  <option value="" disabled>Unable to load patients</option>
+                ) : patients.length === 0 ? (
+                  <option value="" disabled>No patients found</option>
+                ) : (
+                  patients.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.user?.firstName} {p.user?.lastName} ({p.mrn})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           )}
@@ -186,7 +223,7 @@ export const AppointmentsView: React.FC = () => {
             <Label className="block text-xs font-bold text-slate-700 mb-1">Consultation Date *</Label>
             <Input
               type="date"
-              className="font-bold"
+              className="font-bold text-slate-900"
               {...form.register('appointmentDate')}
             />
             {form.formState.errors.appointmentDate && (
@@ -198,6 +235,7 @@ export const AppointmentsView: React.FC = () => {
             <Label className="block text-xs font-bold text-slate-700 mb-1">Reason for Visit</Label>
             <Input
               placeholder="e.g. Chest pain, Routine Health Checkup"
+              className="text-slate-900 placeholder:text-slate-400"
               {...form.register('reason')}
             />
           </div>
@@ -229,45 +267,53 @@ export const AppointmentsView: React.FC = () => {
           </Button>
         </form>
 
-        <div className="lg:col-span-2 glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="lg:col-span-2 glass-card-light p-6 rounded-2xl border border-slate-200 space-y-4 shadow-2xs">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h3 className="font-bold text-sm text-slate-900">30-Minute OPD Slot Allocation</h3>
-              <p className="text-[11px] text-slate-500 font-medium">Available consultation windows for {date}</p>
+              <h3 className="font-extrabold text-sm text-slate-900">30-Minute OPD Slot Allocation</h3>
+              <p className="text-xs font-medium text-slate-600">Available consultation windows for {date}</p>
             </div>
-            <span className="text-xs font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+            <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
               Concurrency Safe
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {slots.map((slot: any) => {
-              const isSelected = selectedSlot === slot.time;
-              const isAvailable = slot.available ?? slot.isAvailable ?? true;
+          {isSlotsLoading ? (
+            <div className="p-8 text-center text-xs font-semibold text-slate-500">Loading available 30-minute consultation slots...</div>
+          ) : isSlotsError ? (
+            <div className="p-8 text-center text-xs font-semibold text-rose-600">Unable to load appointment availability for selected physician.</div>
+          ) : slots.length === 0 ? (
+            <div className="p-8 text-center text-xs font-semibold text-slate-500">No consultation slots available for {date}.</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {slots.map((slot: any) => {
+                const isSelected = selectedSlot === slot.time;
+                const isAvailable = slot.available ?? slot.isAvailable ?? true;
 
-              return (
-                <button
-                  key={slot.time}
-                  type="button"
-                  disabled={!isAvailable}
-                  onClick={() => setSelectedSlot(slot.time)}
-                  className={`p-3 rounded-xl border text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
-                    isSelected
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-md shadow-teal-600/20'
-                      : isAvailable
-                      ? 'bg-white border-slate-300 text-slate-900 hover:border-teal-500 hover:bg-teal-50/50'
-                      : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{slot.time}</span>
-                  <span className="text-[9px] font-semibold uppercase">
-                    {isAvailable ? 'Available' : 'Booked'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={slot.time}
+                    type="button"
+                    disabled={!isAvailable}
+                    onClick={() => setSelectedSlot(slot.time)}
+                    className={`p-3 rounded-xl border text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                      isSelected
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-md shadow-teal-600/20'
+                        : isAvailable
+                        ? 'bg-white border-slate-300 text-slate-900 hover:border-teal-500 hover:bg-teal-50/50'
+                        : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{slot.time}</span>
+                    <span className="text-[9px] font-semibold uppercase">
+                      {isAvailable ? 'Available' : 'Booked'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

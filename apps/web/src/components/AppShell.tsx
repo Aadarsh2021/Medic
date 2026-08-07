@@ -16,6 +16,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
+    if (!accessToken && typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
     if (accessToken && currentUser) {
       apiRequest('/notifications/me')
         .then((notifs) => setNotifications(notifs || []))
@@ -41,38 +47,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [accessToken, currentUser]);
 
-  const handleMarkRead = async (id: string) => {
-    try {
-      await apiRequest(`/notifications/${id}/read`, { method: 'PATCH' });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-      );
-    } catch (err) {
-      console.error(err);
-    }
+  const markAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
       <Navbar
-        currentUser={currentUser}
         notifications={notifications}
-        unreadCount={unreadCount}
+        onMarkAllRead={markAllRead}
         onOpenSearch={() => setIsSearchOpen(true)}
-        onMarkNotificationRead={handleMarkRead}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 relative">
         <Sidebar
-          userRole={currentUser?.role || 'SUPER_ADMIN'}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 bg-slate-50 text-slate-900 p-4 sm:p-6 lg:p-8 min-w-0">
           {children}
         </main>
       </div>
