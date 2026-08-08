@@ -46,6 +46,11 @@ export const useAuthStore = create<AuthState>()(
       name: 'medcore-auth-storage',
       storage: createJSONStorage(() => customStorage),
       partialize: (state) => ({ currentUser: state.currentUser, accessToken: state.accessToken }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.accessToken && typeof window !== 'undefined') {
+          localStorage.setItem('accessToken', state.accessToken);
+        }
+      },
     },
   ),
 );

@@ -71,15 +71,17 @@ export const AuthView: React.FC = () => {
   });
 
   React.useEffect(() => {
-    apiRequest('/hospitals')
-      .then((data) => {
-        setHospitals(data || []);
-        if (data && data.length > 0) {
-          registerForm.setValue('hospitalId', data[0].id);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (tab === 'register' && hospitals.length === 0) {
+      apiRequest('/hospitals/public')
+        .then((data) => {
+          setHospitals(data || []);
+          if (data && data.length > 0) {
+            registerForm.setValue('hospitalId', data[0].id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [tab, hospitals.length, registerForm]);
 
   const handleLoginSubmit = async (values: LoginFormValues) => {
     setLoading(true);
@@ -204,6 +206,7 @@ export const AuthView: React.FC = () => {
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 z-10" />
                     <Input
                       type="email"
+                      autoComplete="username"
                       className="pl-9"
                       placeholder="dr.sharma@medcore.org"
                       {...loginForm.register('email')}
@@ -220,6 +223,7 @@ export const AuthView: React.FC = () => {
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 z-10" />
                     <Input
                       type="password"
+                      autoComplete="current-password"
                       className="pl-9"
                       placeholder="••••••••••••"
                       {...loginForm.register('password')}
@@ -245,6 +249,7 @@ export const AuthView: React.FC = () => {
                     <Label className="block text-[11px] font-bold text-slate-700 mb-1">First Name *</Label>
                     <Input
                       placeholder="Rahul"
+                      autoComplete="given-name"
                       {...registerForm.register('firstName')}
                     />
                     {registerForm.formState.errors.firstName && (
@@ -255,6 +260,7 @@ export const AuthView: React.FC = () => {
                     <Label className="block text-[11px] font-bold text-slate-700 mb-1">Last Name *</Label>
                     <Input
                       placeholder="Verma"
+                      autoComplete="family-name"
                       {...registerForm.register('lastName')}
                     />
                     {registerForm.formState.errors.lastName && (
@@ -267,6 +273,7 @@ export const AuthView: React.FC = () => {
                   <Label className="block text-[11px] font-bold text-slate-700 mb-1">Work Email *</Label>
                   <Input
                     type="email"
+                    autoComplete="email"
                     placeholder="r.verma@medcore.org"
                     {...registerForm.register('email')}
                   />
@@ -312,6 +319,7 @@ export const AuthView: React.FC = () => {
                   <Label className="block text-[11px] font-bold text-slate-700 mb-1">Password *</Label>
                   <Input
                     type="password"
+                    autoComplete="new-password"
                     placeholder="••••••••••••"
                     {...registerForm.register('password')}
                   />

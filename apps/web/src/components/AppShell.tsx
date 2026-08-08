@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
@@ -10,41 +11,64 @@ import { NotificationItem } from '../types';
 import { apiRequest, API_BASE } from '../services/api';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { currentUser, accessToken } = useAuthStore();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!accessToken && typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    if (!accessToken && pathname !== '/login') {
+      router.push('/login');
     }
-  }, [accessToken]);
+  }, [accessToken, pathname, router]);
 
   useEffect(() => {
-    if (accessToken && currentUser) {
-      apiRequest('/notifications/me')
-        .then((notifs) => setNotifications(notifs || []))
-        .catch(() => {});
+    if (!accessToken || !currentUser) return;
 
-      let socket: Socket | null = null;
-      try {
-        socket = io(API_BASE, {
-          auth: { token: accessToken },
-          transports: ['websocket'],
-        });
+    let socket: Socket | null = null;
+    let isSubscribed = true;
 
-        socket.on('notification', (newNotif: NotificationItem) => {
-          setNotifications((prev) => [newNotif, ...prev]);
-        });
-      } catch (err) {
-        console.error('Socket connection error:', err);
-      }
+    apiRequest('/notifications/me')
+      .then((notifs) => {
+        if (isSubscribed) setNotifications(notifs || []);
+      })
+      .catch(() => {});
 
-      return () => {
-        if (socket) socket.disconnect();
-      };
+    try {
+      socket = io(API_BASE, {
+        auth: { token: accessToken },
+        transports: ['websocket', 'polling'],
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+      });
+
+      socket.on('notification:new', (newNotif: NotificationItem) => {
+        if (isSubscribed) setNotifications((prev) => [newNotif, ...prev]);
+      });
+      socket.on('notification', (newNotif: NotificationItem) => {
+        if (isSubscribed) setNotifications((prev) => [newNotif, ...prev]);
+      });
+    } catch (err) {
+      // Non-blocking socket error catch
     }
+
+    return () => {
+      isSubscribed = false;
+      if (socket) {
+        socket.off('notification:new');
+        socket.off('notification');
+        if (socket.connected) {
+          socket.disconnect();
+        } else {
+          socket.on('connect', () => {
+            socket?.disconnect();
+          });
+        }
+      }
+    };
   }, [accessToken, currentUser]);
 
   const markAllRead = () => {

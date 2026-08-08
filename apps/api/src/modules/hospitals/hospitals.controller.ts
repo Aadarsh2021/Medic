@@ -7,11 +7,18 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('hospitals')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('hospitals')
 export class HospitalsController {
   constructor(private hospitalsService: HospitalsService) {}
 
+  @Get('public')
+  @ApiOperation({ summary: 'Get public hospital list for staff registration dropdowns' })
+  async getPublicHospitals() {
+    const data = await this.hospitalsService.getPublicHospitals();
+    return { success: true, data };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   @ApiOperation({ summary: 'Get accessible hospital tenants' })
   async getHospitals(@CurrentUser() user: any) {
@@ -20,6 +27,7 @@ export class HospitalsController {
     return { success: true, data };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
   @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Register a new hospital branch' })
@@ -28,6 +36,7 @@ export class HospitalsController {
     return { success: true, data };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get(':id/departments')
   @ApiOperation({ summary: 'List departments for hospital' })
   async getDepartments(@Param('id') id: string) {
@@ -35,6 +44,7 @@ export class HospitalsController {
     return { success: true, data };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':id/departments')
   @Roles('SUPER_ADMIN', 'HOSPITAL_ADMIN')
   @ApiOperation({ summary: 'Create department under hospital' })
@@ -43,6 +53,7 @@ export class HospitalsController {
     return { success: true, data };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get(':id/rooms')
   @ApiOperation({ summary: 'List rooms for hospital' })
   async getRooms(@Param('id') id: string) {

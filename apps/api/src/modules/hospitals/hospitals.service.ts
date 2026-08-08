@@ -5,6 +5,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class HospitalsService {
   constructor(private prisma: PrismaService) {}
 
+  async getPublicHospitals() {
+    return this.prisma.hospital.findMany({
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
+    });
+  }
+
   async getHospitals(userHospitalId?: string, isSuperAdmin = false) {
     const where: any = {};
     if (userHospitalId && !isSuperAdmin) {
